@@ -1,0 +1,169 @@
+import { FileTree, Tabs } from 'nextra/components';
+
+# 介绍
+
+## NestJS 介绍
+
+NestJS 是一个开源的 Node.js 框架，用于构建高效、可扩展的服务器端应用程序。它使用 TypeScript 编写，并结合了 OOP（面向对象编程）、FP（函数式编程）和 FRP（函数响应式编程）的元素，以提供一种现代且结构化的方式来构建企业级应用程序。
+
+### 核心特性
+
+1. **现代JavaScript**：NestJS 完全基于 TypeScript，利用其类型系统和面向对象的特性来构建稳健的应用程序。
+2. **模块化**：NestJS 采用模块化的设计，使得应用程序可以被分解成更小、更易管理的部分。
+3. **依赖注入**：框架提供了一个强大的依赖注入系统，类似于 Spring，可以轻松地管理服务的依赖关系。
+4. **端点路由**：NestJS 提供了一个声明式的路由系统，使得定义端点和控制器变得简单直观。
+5. **中间件和管道**：框架支持中间件和管道，允许开发者在处理 HTTP 请求之前或之后执行逻辑。
+6. **服务和守卫**：NestJS 允许创建服务和守卫，这些可以在应用程序中被复用，并提供了请求处理的额外层。
+7. **可测试性**：由于其模块化和依赖注入的特性，NestJS 应用程序易于编写单元测试和集成测试。
+8. **微服务支持**：NestJS 支持构建微服务架构，并且与消息传递系统（如 MQTT 或 WebSockets）集成良好。
+
+### 发展历程
+
+NestJS 的发展始于对 Node.js 社区中缺乏一个结构化框架的需求。2016年，Kamil Mysliwiec 受到了 Angular 的启发，
+它将 Angular 的许多概念，如依赖注入、模块化和服务，带入了 Node.js 后端开发并创建了 NestJS 框架。
+
+目前 NestJS 已经被广泛认可，并成为 Node.js 开发者构建新应用程序的首选框架之一，特别是在需要构建大型、可扩展和维护性强的应用程序时。
+
+
+## 代码示例
+
+一个最简单的NestJS项目文件夹结构如下：
+
+<FileTree>
+  <FileTree.Folder name="nestjs-hello-world" defaultOpen>
+    <FileTree.Folder name="src" defaultOpen>
+      <FileTree.File name="hello.controller.ts" />
+      <FileTree.File name="app.module.ts" />
+      <FileTree.File name="main.ts" />
+    </FileTree.Folder>
+    <FileTree.File name="package.json" />
+    <FileTree.File name="tsconfig.json" />
+  </FileTree.Folder>
+</FileTree>
+
+<Tabs items={['main.ts', 'app.module.ts', 'hello.controller.ts']}>
+  <Tabs.Tab>
+    ```ts
+    import { NestFactory } from '@nestjs/core';
+    import { AppModule } from './app.module';
+
+    async function main() {
+        const app = await NestFactory.create(AppModule);
+        await app.listen(8080);
+    }
+    main();
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```ts
+    import { Module } from '@nestjs/common';
+    import { HelloController } from './hello.controller';
+
+    @Module({
+        controllers: [HelloController],
+    })
+    export class AppModule {}
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```ts
+    import { Controller, Get } from '@nestjs/common';
+
+    @Controller()
+    export class HelloController {
+        @Get()
+        getHello(): string {
+            return 'Hello World';
+        }
+    }
+    ```
+  </Tabs.Tab>
+</Tabs>
+
+
+## SpringBoot 介绍
+
+Spring Boot 是一个开源的 Java 基础框架，由 Pivotal 团队提供，用于创建独立、生产级别的基于 Spring 的应用程序。
+它旨在简化 Spring 应用的初始搭建以及开发过程，通过自动配置和“约定大于配置”的原则，使开发者能够快速搭建独立、生产级别的应用程序。
+
+### 核心特性
+
+1. **简化配置**：Spring Boot 采用约定优于配置的方式，通过自动化配置和默认设置来简化开发者的配置工作，减少了繁琐的配置代码。
+2. **内嵌Web容器**：Spring Boot 内置了多种常用的 Web 容器，如 Tomcat、Jetty、Undertow 等，使得构建独立的 Web 应用程序变得更加简单。
+3. **自动化依赖管理**：通过提供一系列的“starter”依赖，Spring Boot 自动管理了应用程序的依赖关系，简化了依赖管理的工作。
+4. **开发者工具**：Spring Boot 提供了丰富的开发者工具，如热部署、自动重启、自动配置报告等，提高了开发效率。
+5. **外部化配置**：支持使用外部配置文件来配置应用程序的属性，如数据库连接、日志配置等，使得应用程序的配置更加灵活和可管理。
+6. **高度可扩展**：基于 Spring 框架，Spring Boot 支持丰富的扩展点和插件，使得应用程序的功能可以方便地进行扩展和定制。
+
+### 发展历程
+
+Spring Boot 的发展可以追溯到 Spring 框架的演变。Spring 框架自 2003 年由 Rod Johnson 创建，并在 2004 年开源。
+随着时间的推移，Spring 框架逐渐成为 Java 企业级开发中不可或缺的一部分。
+
+2014年，基于 Spring 4.0 设计的 Spring Boot 1.0 版本发布，它不仅继承了 Spring 框架原有的优秀特性，而且还通过简化配置来进一步简化了 Spring 应用的整个搭建和开发过程。
+Spring Boot 通过集成大量的框架使得依赖包的版本冲突以及引用的不稳定性等问题得到了很好的解决。
+
+随着 Spring Boot 3.0 版本的推出，Spring Boot 继续在简化开发和提高生产效率方面取得了显著的进步。
+目前 Spring Boot 已经被广泛认可，并成为 Java 开发者构建新应用程序的首选框架之一。
+
+
+## 代码示例
+
+一个最简单的SpringBoot项目文件夹结构如下 :
+
+<FileTree>
+  <FileTree.Folder name="spring-boot-hello-world" defaultOpen>
+    <FileTree.Folder name="src" defaultOpen>
+      <FileTree.Folder name="java/com/example" defaultOpen>
+        <FileTree.File name="HelloApplication.java" />
+        <FileTree.File name="HelloController.java" />
+      </FileTree.Folder>
+      <FileTree.Folder name="resources" defaultOpen>
+        <FileTree.File name="application.yml" />
+      </FileTree.Folder>  
+    </FileTree.Folder>
+    <FileTree.File name="pom.xml" />    
+  </FileTree.Folder>
+</FileTree>
+
+<Tabs items={['HelloApplication.java', 'HelloController.java', 'application.yml']}>
+  <Tabs.Tab>
+    ```java
+    package com.example;
+
+    import org.springframework.boot.SpringApplication;
+    import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+    @SpringBootApplication
+    public class HelloApplication {
+
+        public static void main(String[] args) {
+            SpringApplication.run(HelloApplication.class, args);
+        }
+    }
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```java
+    package com.example;
+
+    import org.springframework.web.bind.annotation.GetMapping;
+    import org.springframework.web.bind.annotation.RestController;
+
+    @RestController
+    public class HelloController {
+
+        @GetMapping("/")
+        public String hello() {
+            return "Hello World";
+        }
+    }
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```yaml
+    server:
+      port: 8080
+    ```
+  </Tabs.Tab>
+</Tabs>

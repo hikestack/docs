@@ -1,4 +1,16 @@
-import nextra from 'nextra'
+import nextra from 'nextra';
+
+/**
+ * @type {import('next').NextConfig}
+ */
+const nextConfig = {
+  output: 'export',
+  images: {
+    unoptimized: true
+  },
+  distDir: 'dist',
+};
+
  
 const withNextra = nextra({
   theme: 'nextra-theme-docs',
@@ -6,4 +18,4 @@ const withNextra = nextra({
   defaultShowCopyCode: true,
 });
  
-export default withNextra();
+export default withNextra(nextConfig);

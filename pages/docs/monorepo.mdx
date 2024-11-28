@@ -1,0 +1,865 @@
+import { FileTree, Tabs } from 'nextra/components';
+
+# 什么是 Monorepo？
+
+Monorepo（单体仓库）是一种软件工程中的版本控制系统，它将多个项目或模块放在一个单一的仓库中管理，而不是分散在多个独立的仓库中。这种模式在现代软件开发中越来越受欢迎，因为它提供了几个显著的优势：
+
+1. **简化的依赖管理**：Monorepo 允许跨项目的依赖关系更容易管理，因为所有代码都位于同一仓库中。
+2. **统一的构建和测试**：Monorepo 使得整个代码库的构建和测试更加一致和集中。
+3. **更好的代码共享**：Monorepo 促进了代码和工具的共享，有助于减少重复代码。
+4. **简化的代码审查**：开发者可以在一个上下文中审查跨多个项目的代码变更，这有助于保持代码的一致性和质量。
+5. **更高效的协作**：团队成员可以更容易地协作和理解整个系统的代码结构。
+
+## 使用 pnpm 创建 TypeScript Monorepo
+
+`pnpm` 支持 `workspaces` 功能，允许你在一个仓库中管理多个包。以下是如何使用 `pnpm` 创建和管理 Monorepo 的基本步骤：
+
+1. **初始化 Monorepo**
+
+   创建一个新的目录，并初始化一个新的 `pnpm` 工作区：
+
+   ```bash
+   mkdir pnpm-mono
+   cd pnpm-mono
+   pnpm init -y
+   ```
+
+   修改生成 package.json 中的 name 字段为 `@ell/monorepo`，`@ell` 部分是你的公司或组织名称
+
+   ```json filename="package.json"
+   {
+        "name": "@ell/monorepo",
+        "version": "1.0.0"
+    }
+   ```
+
+2. **配置 workspace**
+
+   在 `pnpm-mono` 目录下定义工作区，并使用 tsup 作为 TypeScript 打包构建工具，使用 biome 作为代码格式化工具， 使用 tsx 作为 TypeScript 开发环境运行工具。
+
+   <Tabs items={['package.json', 'tsup.config.ts', 'biome.json', 'pnpm-workspace.yaml', '.npmrc']}>
+      <Tabs.Tab>
+         ```json
+         {
+            "name": "@ell/monorepo",
+            "version": "1.0.0",
+            "scripts": {
+               "preinstall": "npx only-allow pnpm",
+               "build": "pnpm --filter \"./packages/**\" run build",
+               "clean": "pnpm --filter=@elljs/* run clean",
+               "format": "pnpm biome format --write ."
+            },
+            "devDependencies": {
+               "@biomejs/biome": "^1.9.4",
+               "rimraf": "^6.0.1",
+               "tsup": "^8.3.5",
+               "tsx": "^4.19.2"
+            }
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```ts
+         import { defineConfig } from 'tsup';
+
+         export default defineConfig([
+            {
+               entry: ['src/index.ts'],
+               outDir: 'dist',
+               target: 'node18',
+               platform: 'node',
+               format: ['cjs', 'esm'],
+               splitting: false,
+               sourcemap: true,
+               minify: true,
+               shims: true,
+               dts: true,
+            },
+         ]);
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```json
+         {
+            "$schema": "https://biomejs.dev/schemas/1.8.0/schema.json",
+            "organizeImports": {
+               "enabled": true
+            },
+            "vcs": {
+               "enabled": true,
+               "clientKind": "git",
+               "useIgnoreFile": true
+            },
+            "formatter": {
+               "enabled": true,
+               "formatWithErrors": false,
+               "ignore": [],
+               "indentStyle": "tab",
+               "indentWidth": 2,
+               "lineWidth": 120
+            },
+            "javascript": {
+               "formatter": {
+                  "enabled": true,
+                  "semicolons": "always",
+                  "quoteStyle": "single",
+                  "jsxQuoteStyle": "double",
+                  "trailingCommas": "all"
+               }
+            },
+            "linter": {
+               "enabled": true,
+               "rules": {
+                  "recommended": true,
+                  "suspicious": {
+                     "noExplicitAny": "off"
+                  }
+               }
+            }
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```yaml
+         packages:
+            - apps/*
+            - packages/*
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```
+         link-workspace-packages = true
+         prefer-workspace-packages = true
+         recursive-install = true
+         ```
+      </Tabs.Tab>
+   </Tabs>
+
+   `.npmrc` 中的配置:
+
+   **link-workspace-packages = true**
+      - 当设置为 `true` 时，这个选项会让 `pnpm` 自动将工作区中的包相互链接。也就是说，当一个包依赖于工作区中的另一个包时，`pnpm` 会创建一个符号链接（symlink），使得一个包可以直接引用另一个包的本地版本，而不是安装来自远程仓库的版本。这样可以加快开发速度，因为不需要重复下载和安装相同的代码。
+
+   **prefer-workspace-packages = true**
+      - 这个选项指示 `pnpm` 在安装依赖时，优先选择工作区中的包而不是远程仓库中的包。如果工作区中存在与远程仓库相同版本的包，`pnpm` 将使用工作区中的版本。这有助于确保开发和生产环境中使用的包版本一致，并且可以减少对外部仓库的依赖。
+
+   **recursive-install = true**
+      - 当设置为 `true` 时，这个选项会让 `pnpm` 在安装依赖时递归地检查所有子工作区（sub-workspaces）的依赖。这意味着 `pnpm` 将不仅安装当前工作区的依赖，还会检查并安装所有子工作区的依赖。这有助于确保整个 monorepo 结构中的所有包都正确安装了它们的依赖。
+
+3. **创建包**
+      
+   在 `packages` 目录下创建不同的包：
+
+   ```bash
+   cd packages
+   mkdir package-a package-b
+   ```
+
+   package-a 和 package-b 包的 package.json 文件中的 name 字段分别为 `@ell/package-a` 和 `@ell/package-b`
+
+   package-a 中的文件如下:
+
+   <Tabs items={['package.json', 'src/index.ts', 'biome.json', 'tsconfig.json']}>
+      <Tabs.Tab>
+         ```json
+         {
+            "name": "@ell/package-a",
+            "version": "1.0.0",
+            "type": "module",
+            "source": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "sideEffects": false,
+            "exports": {
+               ".": {
+                  "import": "./dist/index.js",
+                  "require": "./dist/index.cjs",
+                  "default": "./dist/index.js"
+               }
+            },
+            "files": ["dist"],
+            "scripts": {
+               "build": "tsup --config ../../tsup.config.ts",
+               "clean": "rimraf dist && rimraf node_modules"
+            },
+            "devDependencies": {
+               "typescript": "^5.7.2"
+            }
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```ts
+         export const fnA = () => console.log('package-a');
+         ```
+      </Tabs.Tab>      
+      <Tabs.Tab>
+         ```json
+         {
+            "extends": ["../../biome.json"]
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```json
+         {
+            "$schema": "https://json.schemastore.org/tsconfig",
+            "compilerOptions": {
+               "lib": ["esnext", "dom.iterable", "dom"],
+               "module": "esnext",
+               "moduleResolution": "bundler",
+               "moduleDetection": "force",
+               "noEmit": true,
+               "target": "es2020",
+               "outDir": "dist",
+
+               "allowImportingTsExtensions": false,
+               "allowJs": true,
+               "esModuleInterop": true,
+               "forceConsistentCasingInFileNames": true,
+               "incremental": false,
+               "isolatedModules": true,
+               "jsx": "preserve",
+               "noUncheckedIndexedAccess": true,
+               "resolveJsonModule": true,
+               "skipLibCheck": true,
+               "sourceMap": true,
+               "strict": true,
+               "useDefineForClassFields": true,
+               "verbatimModuleSyntax": true,
+
+               "baseUrl": ".",
+               "paths": {
+                  "@/*": ["./src/*"]
+               }
+            },
+            "include": ["src"]
+         }
+         ```
+      </Tabs.Tab>
+   </Tabs>
+
+   package-b 中的文件如下:
+
+   <Tabs items={['package.json', 'src/index.ts', 'biome.json', 'tsconfig.json']}>
+      <Tabs.Tab>
+         ```json
+         {
+            "name": "@ell/package-b",
+            "version": "1.0.0",
+            "type": "module",
+            "source": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "sideEffects": false,
+            "exports": {
+               ".": {
+                  "import": "./dist/index.js",
+                  "require": "./dist/index.cjs",
+                  "default": "./dist/index.js"
+               }
+            },
+            "files": ["dist"],
+            "scripts": {
+               "build": "tsup --config ../../tsup.config.ts",
+               "clean": "rimraf dist && rimraf node_modules"
+            },
+            "devDependencies": {
+               "typescript": "^5.7.2"
+            }
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```ts
+         export const fnB = () => console.log('package-b');
+         ```
+      </Tabs.Tab>      
+      <Tabs.Tab>
+         ```json
+         {
+            "extends": ["../../biome.json"]
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```json
+         {
+            "$schema": "https://json.schemastore.org/tsconfig",
+            "compilerOptions": {
+               "lib": ["esnext", "dom.iterable", "dom"],
+               "module": "esnext",
+               "moduleResolution": "bundler",
+               "moduleDetection": "force",
+               "noEmit": true,
+               "target": "es2020",
+               "outDir": "dist",
+
+               "allowImportingTsExtensions": false,
+               "allowJs": true,
+               "esModuleInterop": true,
+               "forceConsistentCasingInFileNames": true,
+               "incremental": false,
+               "isolatedModules": true,
+               "jsx": "preserve",
+               "noUncheckedIndexedAccess": true,
+               "resolveJsonModule": true,
+               "skipLibCheck": true,
+               "sourceMap": true,
+               "strict": true,
+               "useDefineForClassFields": true,
+               "verbatimModuleSyntax": true,
+
+               "baseUrl": ".",
+               "paths": {
+                  "@/*": ["./src/*"]
+               }
+            },
+            "include": ["src"]
+         }
+         ```
+      </Tabs.Tab>
+   </Tabs>
+
+   在 `package.json` 文件中定义了与模块相关的配置，以下是每个字段的详细解释：
+
+   1. **"type": "module"**
+      - 这个字段指定包支持 ES 模块。它告诉 Node.js 和其他环境，所有的模块都是 ECMAScript 模块，这意味着你可以使用 `import` 和 `export` 语法。
+
+   2. **"source": "./src/index.ts"**
+      - 这个字段指定了 TypeScript 编译器的入口文件。它告诉编译器从 `./src/index.ts` 文件开始编译。
+
+   3. **"types": "./dist/index.d.ts"**
+      - 这个字段指定了类型定义文件（`.d.ts`）的位置。当你安装这个包时，TypeScript 会查找这个文件来提供类型信息。这里指定的是 `./dist/index.d.ts`。
+
+   4. **"sideEffects": false**
+      - 这个字段告诉打包工具（如 webpack、Rollup）这个包没有任何副作用（即不执行任何代码，除了导出）。这允许打包工具在优化时排除没有被引用的代码，从而减小最终包的大小。
+
+   5. **"exports": {}**
+      - 这个字段定义了模块的导出方式。它允许你指定不同条件下的入口点。
+      - `"."`: 表示默认导出和命名导出的配置。
+      - `"import": "./dist/index.js"`: 指定了当使用 `import` 语法时，应该加载的文件。
+      - `"require": "./dist/index.cjs"`: 指定了当使用 `require` 语法时，应该加载的文件。这对于 CommonJS 模块兼容性很重要。
+      - `"default": "./dist/index.js"`: 指定了默认导出的文件。
+
+   6. **"files": ["dist"]**
+      - 这个字段定义了当你的包被安装时，哪些文件应该被包含在内。这里指定的是只包含 `dist` 目录下的文件。
+
+   这些字段共同定义了包的结构、兼容性和构建行为，使得包可以在不同的环境下正确地被构建和使用。通过精确控制导出和文件包含，你可以确保你的包在不同的模块系统中都能正常工作，并且提供良好的类型支持。
+
+4. **创建应用**
+
+   在 `apps` 目录下创建应用：
+
+   ```bash
+   cd apps   
+   mkdir api
+   ```
+
+   安装 package-a 和 package-b:
+
+   ```bash   
+   pnpm add @ell/package-a @ell/package-b
+   ```
+
+   api 中的文件如下:
+
+   <Tabs items={['package.json', 'src/index.ts', 'biome.json', 'tsconfig.json']}>
+      <Tabs.Tab>
+         ```json
+         {
+            "name": "@ell/api",
+            "version": "1.0.0",
+            "scripts": {
+               "build": "tsc ./src/index.ts",
+               "dev": "tsx ./src/index.ts",
+               "clean": "rimraf dist && rimraf node_modules"
+            },
+            "dependencies": {
+               "@ell/package-a": "workspace:^",
+               "@ell/package-b": "workspace:^"
+            },
+            "devDependencies": {
+               "typescript": "^5.7.2"
+            }
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```ts
+         import { fnA } from '@ell/package-a';
+         import { fnB } from '@ell/package-b';
+
+         fnA();
+         fnB();
+         ```
+      </Tabs.Tab>      
+      <Tabs.Tab>
+         ```json
+         {
+            "extends": ["../../biome.json"]
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```json
+         {
+            "$schema": "https://json.schemastore.org/tsconfig",
+            "compilerOptions": {
+               "lib": ["esnext", "dom.iterable", "dom"],
+               "module": "esnext",
+               "moduleResolution": "bundler",
+               "moduleDetection": "force",
+               "noEmit": true,
+               "target": "es2020",
+               "outDir": "dist",
+
+               "allowImportingTsExtensions": false,
+               "allowJs": true,
+               "esModuleInterop": true,
+               "forceConsistentCasingInFileNames": true,
+               "incremental": false,
+               "isolatedModules": true,
+               "jsx": "preserve",
+               "noUncheckedIndexedAccess": true,
+               "resolveJsonModule": true,
+               "skipLibCheck": true,
+               "sourceMap": true,
+               "strict": true,
+               "useDefineForClassFields": true,
+               "verbatimModuleSyntax": true,
+
+               "baseUrl": ".",
+               "paths": {
+                  "@/*": ["./src/*"]
+               }
+            },
+            "include": ["src"]
+         }
+         ```
+      </Tabs.Tab>
+   </Tabs>
+
+   完整的目录结构如下：
+
+   <FileTree>
+      <FileTree.Folder name="pnpm-mono" defaultOpen>
+            <FileTree.Folder name="apps" defaultOpen>
+               <FileTree.Folder name="api" defaultOpen>
+                  <FileTree.Folder name="src" defaultOpen>
+                     <FileTree.File name="index.ts" />              
+                  </FileTree.Folder>
+                  <FileTree.File name="package.json" />
+                  <FileTree.File name="biome.json" />
+                  <FileTree.File name="tsconfig.json" />
+               </FileTree.Folder>
+            </FileTree.Folder>
+            <FileTree.Folder name="packages" defaultOpen>
+               <FileTree.Folder name="package-a" defaultOpen>
+                  <FileTree.Folder name="src" defaultOpen>
+                     <FileTree.File name="index.ts" />
+                  </FileTree.Folder>
+                  <FileTree.File name="package.json" />
+                  <FileTree.File name="biome.json" />
+                  <FileTree.File name="tsconfig.json" />
+               </FileTree.Folder>
+               <FileTree.Folder name="package-b" defaultOpen>
+                  <FileTree.Folder name="src" defaultOpen>
+                     <FileTree.File name="index.ts" />
+                  </FileTree.Folder>
+                  <FileTree.File name="package.json" />
+                  <FileTree.File name="biome.json" />
+                  <FileTree.File name="tsconfig.json" />
+               </FileTree.Folder>
+            </FileTree.Folder>
+            <FileTree.File name=".npmrc" />
+            <FileTree.File name="biome.json" />
+            <FileTree.File name="package.json" />
+            <FileTree.File name="pnpm-workspace.yaml" />
+            <FileTree.File name="tsup.config.ts" />
+      </FileTree.Folder>
+   </FileTree>
+
+5. **构建**
+
+   在根目录执行 `pnpm install` 命令， 然后执行 `pnpm build` 命令。
+
+   ```ansi
+   (base) [0;32m ➜ [0m [38;5;31mpnpm-mono[0m pnpm build
+   
+   > @ell/monorepo@1.0.0 build /Users/roylin/Desktop/ell/pnpm-mono
+   > pnpm --filter "./packages/**" run build
+
+   Scope: 2 of 4 workspace projects
+   packages/package-a [38;5;31mbuild[0m$ tsup --config ../../tsup.config.ts
+   [7 lines collapsed]
+   [38;5;207m │ [0m ESM dist/index.js     86.00 B
+   [38;5;207m │ [0m ESM dist/index.js.map 182.00 B
+   [38;5;207m │ [0m ESM ⚡️ Build success in 10ms
+   [38;5;207m │ [0m CJS dist/index.cjs     567.00 B
+   [38;5;207m │ [0m CJS dist/index.cjs.map 285.00 B
+   [38;5;207m │ [0m CJS ⚡️ Build success in 10ms
+   [38;5;207m │ [0m DTS Build start
+   [38;5;207m │ [0m DTS ⚡️ Build success in 335ms
+   [38;5;207m │ [0m DTS dist/index.d.cts 48.00 B
+   [38;5;207m │ [0m DTS dist/index.d.ts  48.00 B
+   [38;5;207m └─ Done in 1.3s[0m
+   packages/package-b [38;5;31mbuild[0m$ tsup --config ../../tsup.config.ts
+   [7 lines collapsed]
+   [38;5;207m │ [0m ESM dist/index.js     86.00 B
+   [38;5;207m │ [0m ESM dist/index.js.map 182.00 B
+   [38;5;207m │ [0m ESM ⚡️ Build success in 10ms
+   [38;5;207m │ [0m CJS dist/index.cjs     567.00 B
+   [38;5;207m │ [0m CJS dist/index.cjs.map 285.00 B
+   [38;5;207m │ [0m CJS ⚡️ Build success in 10ms
+   [38;5;207m │ [0m DTS Build start
+   [38;5;207m │ [0m DTS ⚡️ Build success in 327ms
+   [38;5;207m │ [0m DTS dist/index.d.cts 48.00 B
+   [38;5;207m │ [0m DTS dist/index.d.ts  48.00 B
+   [38;5;207m └─ Done in 1.3s[0m
+   ```
+
+6. **运行**
+
+   进入 apps/api 目录执行执行 `pnpm dev` 运行应用。
+
+   ```ansi
+   (base) [0;32m ➜ [0m [38;5;31mapi[0m pnpm dev
+
+   > @ell/api@1.0.0 dev /Users/roylin/Desktop/ell/pnpm-mono/apps/api
+   > tsx ./src/index.ts
+
+   package-a
+   package-b
+   ```
+
+源码地址：[https://github.com/elljs/pnpm-mono](https://github.com/elljs/pnpm-mono)
+
+
+## 使用 Maven 创建 Java Monorepo
+
+1. **初始化 Monorepo**
+
+   创建一个Monorepo项目。
+
+   ```bash
+   mkdir maven-mono
+   cd maven-mono
+   
+   # 在根目录下创建 pom.xml
+   touch pom.xml
+   
+   # 在 api 目录中创建 pom.xml
+   mkdir api && touch api/pom.xml
+   
+   # 在 packagea 目录中创建 pom.xml
+   mkdir packagea && touch packagea/pom.xml
+   
+   # 在 packageb 目录中创建 pom.xml
+   mkdir packageb && touch packageb/pom.xml
+
+   ```
+
+   根目录中的 pom.xml 文件内容如下：
+
+   ```xml
+   <project>
+      <!-- 指定 Maven POM 模型的版本 -->
+      <modelVersion>4.0.0</modelVersion>
+      
+      <!-- 项目的基本信息 -->
+      <groupId>com.ell</groupId> <!-- 项目的组 ID，通常用于唯一标识项目或组织 -->
+      <artifactId>maven-monorepo</artifactId> <!-- 项目的 artifact ID，用于在组内部唯一标识项目 -->
+      <version>1.0.0-SNAPSHOT</version> <!-- 项目的版本号，SNAPSHOT 表示这是一个快照版本，可能还在开发中 -->
+      <packaging>pom</packaging> <!-- 打包类型，这里为 POM，表示这是一个父 POM，用于管理子模块 -->
+      
+      <!-- 列出此 POM 文件管理的子模块 -->
+      <modules>
+         <module>packagea</module> <!-- 子模块 packagea 的目录名 -->
+         <module>packageb</module> <!-- 子模块 packageb 的目录名 -->
+         <module>api</module> <!-- 子模块 api 的目录名 -->
+      </modules>
+      
+      <!-- 依赖管理部分，用于定义项目中使用的依赖项的版本，以便在子模块中引用而不需要重复版本号 -->
+      <dependencyManagement>
+         <dependencies>
+               <dependency>
+                  <groupId>com.ell</groupId> <!-- 依赖项的组 ID -->
+                  <artifactId>monorepo</artifactId> <!-- 依赖项的 artifact ID -->
+                  <version>1.0.0</version> <!-- 依赖项的版本号，注意这里应该是一个已发布的稳定版本，而不是 SNAPSHOT，除非你有特殊需求 -->
+               </dependency>
+         </dependencies>
+      </dependencyManagement>
+   </project>
+   ```
+
+   packagea 中的文件，内容如下:
+
+   <Tabs items={['src/main/java/com/ell/packagea/PackageA.java', 'pom.xml']}>
+      <Tabs.Tab>
+         ```java
+         package com.ell.packagea;
+
+         public class PackageA {
+            public void methodA() {
+               System.out.println("Method A from Package A");
+            }
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```xml
+         <project>
+            <!-- 指定 Maven POM 模型的版本 -->
+            <modelVersion>4.0.0</modelVersion>
+            
+            <!-- 指定当前项目的父 POM -->
+            <parent>
+               <!-- 父项目的组 ID -->
+               <groupId>com.ell</groupId>
+               <!-- 父项目的 artifact ID -->
+               <artifactId>maven-monorepo</artifactId>
+               <!-- 父项目的版本号 -->
+               <version>1.0.0-SNAPSHOT</version>
+               <!-- 父 POM 文件的相对路径，这里表示父 POM 位于上一级目录中 -->
+               <relativePath>../pom.xml</relativePath>
+            </parent>
+            
+            <!-- 当前项目的 artifact ID，这里表示该项目是父项目 maven-monorepo 的一个子模块 -->
+            <artifactId>packagea</artifactId>
+         </project>
+         ```
+      </Tabs.Tab>
+   </Tabs>
+
+   packageb 中的文件，内容如下:
+
+   <Tabs items={['src/main/java/com/ell/packageb/PackageB.java', 'pom.xml']}>
+      <Tabs.Tab>
+         ```java
+         package com.ell.packageb;
+
+         public class PackageB {
+            public void methodB() {
+               System.out.println("Method B from Package B");
+            }
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```xml
+         <project>
+            <!-- 指定 Maven POM 模型的版本 -->
+            <modelVersion>4.0.0</modelVersion>
+            
+            <!-- 指定当前项目的父 POM -->
+            <parent>
+               <!-- 父项目的组 ID -->
+               <groupId>com.ell</groupId>
+               <!-- 父项目的 artifact ID -->
+               <artifactId>maven-monorepo</artifactId>
+               <!-- 父项目的版本号 -->
+               <version>1.0.0-SNAPSHOT</version>
+               <!-- 父 POM 文件的相对路径，这里表示父 POM 位于上一级目录中 -->
+               <relativePath>../pom.xml</relativePath>
+            </parent>
+            
+            <!-- 当前项目的 artifact ID，这里表示该项目是父项目 maven-monorepo 的一个子模块 -->
+            <artifactId>packagea</artifactId>
+         </project>
+         ```
+      </Tabs.Tab>
+   </Tabs>
+
+   api 中的文件，内容如下:
+
+   <Tabs items={['src/main/java/com/ell/api/Api.java', 'pom.xml']}>
+      <Tabs.Tab>
+         ```java
+         package com.ell.api;
+
+         import com.ell.packagea.PackageA;
+         import com.ell.packageb.PackageB;
+
+         public class Api {
+            public static void main(String[] args) {
+               PackageA packageA = new PackageA();
+               packageA.methodA();
+
+               PackageB packageB = new PackageB();
+               packageB.methodB();
+            }
+         }
+         ```
+      </Tabs.Tab>
+      <Tabs.Tab>
+         ```xml
+         <project>
+            <!-- 指定 Maven POM 模型的版本 -->
+            <modelVersion>4.0.0</modelVersion>
+            
+            <!-- 指定当前项目的父 POM -->
+            <parent>
+               <!-- 父项目的组 ID -->
+               <groupId>com.ell</groupId>
+               <!-- 父项目的 artifact ID -->
+               <artifactId>maven-monorepo</artifactId>
+               <!-- 父项目的版本号 -->
+               <version>1.0.0-SNAPSHOT</version>
+               <!-- 父 POM 文件的相对路径，这里表示父 POM 位于上一级目录中 -->
+               <relativePath>../pom.xml</relativePath>
+            </parent>
+            
+            <!-- 当前项目的 artifact ID，这里表示该项目是父项目 maven-monorepo 的一个子模块 -->
+            <artifactId>api</artifactId>
+            
+            <!-- 项目依赖项列表，这里列出了当前项目需要的其他 Maven 项目或库 -->
+            <dependencies>
+               <!-- packagea 的依赖项，表示当前项目依赖于 com.ell 组的 packagea 项目 -->
+               <dependency>
+                     <groupId>com.ell</groupId> <!-- 依赖项的组 ID -->
+                     <artifactId>packagea</artifactId> <!-- 依赖项的 artifact ID -->
+                     <version>1.0.0-SNAPSHOT</version> <!-- 依赖项的版本号，这里同样使用的是快照版本 -->
+               </dependency>
+               
+               <!-- packageb 的依赖项，表示当前项目还依赖于 com.ell 组的 packageb 项目 -->
+               <dependency>
+                     <groupId>com.ell</groupId> <!-- 依赖项的组 ID -->
+                     <artifactId>packageb</artifactId> <!-- 依赖项的 artifact ID -->
+                     <version>1.0.0-SNAPSHOT</version> <!-- 依赖项的版本号，同样使用的是快照版本 -->
+               </dependency>
+            </dependencies>
+         </project>
+         ```
+      </Tabs.Tab>
+   </Tabs>
+
+   完整的目录结构如下：
+
+   <FileTree>
+      <FileTree.Folder name="maven-mono" defaultOpen>
+         <FileTree.Folder name="api" defaultOpen>
+            <FileTree.Folder name="src/main/java/com/ell/api" defaultOpen>
+               <FileTree.File name="Api.java" />
+            </FileTree.Folder>
+            <FileTree.File name="pom.xml" />
+         </FileTree.Folder>
+         <FileTree.Folder name="packagea" defaultOpen>
+            <FileTree.Folder name="src/main/java/com/ell/packagea" defaultOpen>
+               <FileTree.File name="PackageA.java" />
+            </FileTree.Folder>
+            <FileTree.File name="pom.xml" />
+         </FileTree.Folder>
+         <FileTree.Folder name="packageb" defaultOpen>
+            <FileTree.Folder name="src/main/java/com/ell/packageb" defaultOpen>
+               <FileTree.File name="PackageB.java" />
+            </FileTree.Folder>
+            <FileTree.File name="pom.xml" />
+         </FileTree.Folder>
+         <FileTree.File name="pom.xml" />
+      </FileTree.Folder>
+   </FileTree>
+
+2. **构建**
+
+   执行 `mvn clean install` 命令，这将编译和打包所有项目，并生成相应的 jar 包和 pom 文件。
+
+   - **mvn**
+
+   这是 Maven 的命令行工具，用于执行 Maven 的各种命令和生命周期阶段。
+
+   - **clean**
+
+   `clean` 是 Maven 的一个生命周期阶段，位于 `validate` 之后。它的主要目的是清理项目之前构建生成的文件，确保从干净的状态开始新的构建。这通常包括删除 `target` 目录（或你配置的任何其他构建输出目录），该目录通常包含编译后的类文件、打包的 JAR 文件、测试报告等。
+
+   执行 `clean` 阶段时，Maven 会调用与清理相关的插件目标。例如，`maven-clean-plugin` 的 `clean` 目标负责删除构建输出目录。
+
+   - **install**
+
+   `install` 是 Maven 的另一个生命周期阶段，位于 `package` 之后，`deploy` 之前。它的主要目的是将项目构建并打包（如 JAR、WAR 等），然后将这个包安装到本地 Maven 仓库中。这样，其他项目就可以作为依赖项来引用它，而无需将其包含在源代码仓库中。
+
+   执行 `install` 阶段时，Maven 会首先执行 `compile`、`test`（如果启用了测试）、`package` 等阶段，以确保项目已经过编译、测试并打包。然后，它会调用与安装相关的插件目标。例如，`maven-install-plugin` 的 `install` 目标负责将构建的输出安装到本地 Maven 仓库中。
+
+   - **mvn clean install**
+
+   当你运行 `mvn clean install` 命令时，Maven 会首先执行 `clean` 阶段来清理之前的构建输出，然后执行 `install` 阶段来构建项目并将其安装到本地 Maven 仓库中。这个命令非常适合于在开发过程中确保你的项目是从干净的状态开始构建的，并且构建的输出被正确地安装到了本地仓库中，以便其他项目可以引用它。
+
+3. **使用插件**
+
+   在 api/pom.xml 中添加一个 maven 插件，用于执行 java 项目的启动命令。
+
+   ```xml {24-37} filename="api/pom.xml" showLineNumbers   
+   <project>
+      <modelVersion>4.0.0</modelVersion>
+      <parent>
+         <groupId>com.ell</groupId>
+         <artifactId>maven-monorepo</artifactId>
+         <version>1.0.0-SNAPSHOT</version>
+         <relativePath>../pom.xml</relativePath>
+      </parent>
+      <artifactId>api</artifactId>
+
+      <dependencies>
+         <dependency>
+               <groupId>com.ell</groupId>
+               <artifactId>packagea</artifactId>
+               <version>1.0.0-SNAPSHOT</version>
+         </dependency>
+         <dependency>
+               <groupId>com.ell</groupId>
+               <artifactId>packageb</artifactId>
+               <version>1.0.0-SNAPSHOT</version>
+         </dependency>
+      </dependencies>
+
+      <build>
+         <pluginManagement>
+               <plugins>          
+                  <plugin>
+                     <groupId>org.codehaus.mojo</groupId>
+                     <artifactId>exec-maven-plugin</artifactId>
+                     <version>3.0.0</version>
+                     <configuration>
+                           <mainClass>com.ell.api.Api</mainClass>
+                     </configuration>
+                  </plugin>      
+               </plugins>
+         </pluginManagement>
+      </build>
+   </project>
+   ```
+
+4. **运行项目**
+
+   ```bash
+   mvn -f api/pom.xml exec:java
+   ```
+
+   - **-f api/pom.xml**
+   
+   `-f` 或 `--file` 选项用于指定要使用的 POM 文件的位置。在这个例子中，它指向 `api/pom.xml`，这意味着 Maven 将会使用位于 `api` 目录下的 `pom.xml` 文件作为项目的对象模型（POM）。这通常用于多模块项目中的子模块，或者当你想要从一个不是当前工作目录的位置运行 Maven 时。
+
+   - **exec:java**
+   
+   这部分指定了要执行的 Maven 插件目标和/或配置。在这个例子中，它使用 `exec:java` 插件目标，这意味着 Maven 将会执行 `exec:java` 插件，并且使用配置中指定的 `mainClass` 参数来启动 Java 应用程序。
+
+   ```ansi {11-12}
+   (base) [0;32m ➜ [0m [38;5;31mmaven-mono[0m mvn -f api/pom.xml exec:java
+
+   [[38;5;31mINFO[0m] Scanning for projects...
+   [[38;5;31mINFO[0m]
+   [[38;5;31mINFO[0m] ----------------------------< [38;5;31mcom.ell:api[0m >-----------------------------
+   [[38;5;31mINFO[0m] Building api 1.0.0-SNAPSHOT
+   [[38;5;31mINFO[0m]   from pom.xml
+   [[38;5;31mINFO[0m] --------------------------------[ jar ]---------------------------------
+   [[38;5;31mINFO[0m]
+   [[38;5;31mINFO[0m] --- [0;32mexec:3.0.0:java[0m (default-cli) @ [38;5;31mapi[0m ---
+   Method A from Package A
+   Method B from Package B
+   [[38;5;31mINFO[0m] ------------------------------------------------------------------------
+   [[38;5;31mINFO[0m] [0;32mBUILD SUCCESS[0m
+   [[38;5;31mINFO[0m] ------------------------------------------------------------------------
+   [[38;5;31mINFO[0m] Total time:  0.311 s
+   [[38;5;31mINFO[0m] Finished at: 2024-11-29T00:24:57+08:00
+   [[38;5;31mINFO[0m] ------------------------------------------------------------------------
+   ```
+
+源码地址：[https://github.com/elljs/maven-mono](https://github.com/elljs/maven-mono)

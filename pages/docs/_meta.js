@@ -4,5 +4,8 @@ export default {
   },
   "setup": {
     title: "环境搭建",
+  },
+  "monorepo": {
+    title: "Monorepo",
   }
 }

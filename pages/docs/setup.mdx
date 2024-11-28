@@ -157,11 +157,13 @@
 
    安装 maven springboot archetype
    ```bash
-   git clone git@github.com:elljs/maven-spring-boot-3-archetype.git && cd maven-spring-boot-3-archetype
+   git clone git@github.com:elljs/maven-spring-boot-3-archetype.git 
+   cd maven-spring-boot-3-archetype
    mvn install
    ```
 
-   使用 maven archetype 创建项目
+   使用 maven archetype 创建项目，需要将 groudId 替换为你的公司或组织的ID 以及将 artifactId 替换为你的项目名称
+
    ```bash   
    mvn archetype:generate \
       -DgroupId=com.example \
@@ -215,5 +217,5 @@
    使用 Java 命令执行打包后的 JAR 文件：
 
    ```bash
-   java -jar target/springboot-project-3.0.0-SNAPSHOT.jar
+   java -jar target/springboot-project-1.0-SNAPSHOT.jar
    ```

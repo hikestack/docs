@@ -7,5 +7,8 @@ export default {
   },
   "monorepo": {
     title: "Monorepo",
+  },
+  "server": {
+    title: "Web服务器",
   }
 }

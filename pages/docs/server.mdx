@@ -1,0 +1,348 @@
+# Web服务器
+
+本章将介绍驱动NestJS和SpringBoot上层框架的底层Web服务器。
+
+## Express
+
+NestJS在底层使用了Express作为其Web服务器之一。这意味着，当你使用NestJS构建应用程序时，你实际上是在使用Express的所有功能，但以一种更结构化和模块化的方式。NestJS通过其装饰器和模块系统，为Express提供了额外的抽象层，使得代码更加整洁和易于维护。
+
+### 使用 Express
+
+1. **安装 Express**
+
+```bash
+pnpm add express
+```
+
+由于 Express 是使用 JavaScript 编写的，因此需要额外安装 Express 的 TypeScript 类型声明
+
+```bash
+pnpm add -D @types/express # -D 选项表示安装依赖项到开发环境，生产环境构建的时候不需要包含该依赖项
+```
+
+2. **创建 Express 应用程序**
+
+```typescript filename="index.ts" showLineNumbers
+import Express from 'express';
+
+const app = Express();
+
+app.get('/', (req, res) => {
+    res.send('Hello World');
+});
+
+app.listen(8080, () => {
+    console.log('Server is running on http://localhost:8080');
+});
+```
+3. **启动应用程序**
+
+配置开发环境启动命令
+
+```json {7} filename="package.json" showLineNumbers
+{
+	"name": "@ell/api",
+	"version": "1.0.0",
+	"scripts": {
+		"build": "tsc ./src/index.ts",
+		"start": "node ./dist/index.js",
+		"dev": "tsx watch ./src/index.ts"
+	},
+	"dependencies": {
+		"express": "^4.21.1"
+	},
+	"devDependencies": {
+		"@types/express": "^5.0.0",
+		"tsx": "^4.19.2",
+		"typescript": "^5.7.2"
+	}
+}
+```
+启动服务器
+
+```ansi
+(base) [0;32m ➜ [0m [38;5;31mapi[0m pnpm dev
+
+> @ell/api@1.0.0 dev /Users/roylin/Desktop/ell/pnpm-mono/apps/api
+> tsx ./src/index.ts
+
+Server is running on [0;32mhttp://localhost:8080[0m
+```
+浏览器访问: [http://localhost:8080](http://localhost:8080) 可以看到输出 `Hello World`
+
+4. **使用中间件**
+
+编写一个简单的日志中间件。这个中间件将记录每个请求的方法、路径和响应时间。
+
+```typescript {3-12, 16} filename="index.ts" showLineNumbers
+import Express from 'express';
+
+const logger = (req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
+    const start = Date.now(); // 请求开始时间 
+
+    res.on('finish', () => { // 当响应结束时触发
+        const duration = Date.now() - start; // 计算响应时间
+        console.log(`${req.method} ${req.url} ${res.statusCode} ${duration}ms`); // 记录日志
+    });
+
+    next(); // 继续处理请求
+}
+
+const app = Express();
+
+app.use(logger);
+
+app.get('/', (req, res) => {
+    res.send('Hello World');
+});
+
+app.listen(8080, () => {
+    console.log('Server is running on http://localhost:8080');
+});
+```
+再次访问 http://localhost:8080 可以看到浏览器输出 `Hello World` 的同时，终端输出了日志。
+
+```ansi
+GET / 200 1ms
+```
+
+## Tomcat
+
+Spring Boot 在底层使用了 Tomcat 作为其内嵌 Web 服务器之一。这意味着，当你使用 Spring Boot 构建应用程序时，你实际上是在以一种更简洁和自动化的方式使用 Tomcat 的所有功能。Spring Boot 通过其自动配置和 starters，为 Tomcat 提供了额外的抽象层，使得代码更加整洁和易于维护。
+
+### 使用 Tomcat
+
+1. **安装 Tomcat**
+
+```xml {12-16} filename="pom.xml" showLineNumbers
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.ell</groupId>
+        <artifactId>maven-monorepo</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>api</artifactId>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.tomcat.embed</groupId>
+            <artifactId>tomcat-embed-core</artifactId>
+            <version>8.5.100</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ell</groupId>
+            <artifactId>packagea</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ell</groupId>
+            <artifactId>packageb</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <pluginManagement>
+            <plugins>          
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>3.0.0</version>
+                    <configuration>
+                        <mainClass>com.ell.api.Api</mainClass>
+                    </configuration>
+                </plugin>      
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>
+```
+
+2. **创建 Tomcat 应用程序**
+
+```java filename="Api.java" showLineNumbers
+package com.ell.api;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.catalina.LifecycleException;
+import org.apache.catalina.startup.Tomcat;
+
+public class Api {
+    public static void main(String[] args) throws LifecycleException {
+        Tomcat tomcat = new Tomcat();
+        tomcat.setPort(8080);
+        tomcat.setBaseDir("temp");
+
+        tomcat.addContext("", new File(".").getAbsolutePath());
+
+        tomcat.addServlet("", "hello", new HttpServlet() {
+            @Override
+            protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+                    throws ServletException, IOException {
+                PrintWriter writer = resp.getWriter();
+                writer.write("Hello World");
+            }
+        }).addMapping("/");
+
+        tomcat.start();
+        System.out.println("Server is running on http://localhost:8080");
+        tomcat.getServer().await();
+    }
+}
+```
+
+3. **启动应用程序**
+
+```ansi
+(base) [0;32m ➜ [0m [38;5;31mmaven-mono[0m mvn -f api/pom.xml exec:java
+[[38;5;31mINFO[0m] Scanning for projects...
+[[38;5;31mINFO[0m]
+[[38;5;31mINFO[0m] ----------------------------< [38;5;31mcom.ell:api[0m >-----------------------------
+[[38;5;31mINFO[0m] Building api 1.0.0-SNAPSHOT
+[[38;5;31mINFO[0m]   from pom.xml
+[[38;5;31mINFO[0m] --------------------------------[ jar ]---------------------------------
+[[38;5;31mINFO[0m]
+[[38;5;31mINFO[0m] --- exec:3.0.0:java (default-cli) @ api ---
+11月 29, 2024 3:04:20 下午 org.apache.coyote.AbstractProtocol init
+信息: Initializing ProtocolHandler ["http-nio-8080"]
+11月 29, 2024 3:04:20 下午 org.apache.catalina.core.StandardService startInternal
+信息: Starting service [Tomcat]
+11月 29, 2024 3:04:20 下午 org.apache.catalina.core.StandardEngine startInternal
+信息: Starting Servlet engine: [Apache Tomcat/8.5.100]
+11月 29, 2024 3:04:20 下午 org.apache.coyote.AbstractProtocol start
+信息: Starting ProtocolHandler ["http-nio-8080"]
+Server is running on [0;32mhttp://localhost:8080[0m
+```
+浏览器访问: [http://localhost:8080](http://localhost:8080) 可以看到输出 `Hello World`
+
+4. **使用过滤器**
+
+通过创建过滤器可以实现和 Express 中间件类似的功能
+
+```java
+package com.ell.api;
+
+import java.io.IOException;
+
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+public class LoggerFilter implements Filter {
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+    }
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        // 转换为HTTP请求和响应以访问特定的方法和属性
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        // 请求开始时间
+        long start = System.currentTimeMillis();
+
+        // 继续执行过滤器链
+        chain.doFilter(request, response);
+
+        // 计算响应时间
+        long duration = System.currentTimeMillis() - start;
+
+        // 获取响应状态码
+        int statusCode = httpResponse.getStatus();
+
+        // 记录日志
+        String method = httpRequest.getMethod();
+        String url = httpRequest.getRequestURI();
+        log(method, url, statusCode, duration);
+    }
+
+    @Override
+    public void destroy() {
+    }
+
+    private void log(String method, String url, int statusCode, long duration) {
+        // 构建日志信息
+        String logMessage = String.format("%s %s %d %dms", method, url, statusCode, duration);
+        System.out.println(logMessage); // 输出到控制台，也可以改为记录到文件或其他日志系统
+    }
+}
+```
+
+要让 Tomcat 能正确加载过滤器，需要为上下文对象设置正确的类加载器
+
+```java {24-26, 37-40, 42-45} filename="Api.java" showLineNumbers
+package com.ell.api;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.catalina.Context;
+import org.apache.catalina.LifecycleException;
+import org.apache.catalina.startup.Tomcat;
+import org.apache.tomcat.util.descriptor.web.FilterDef;
+import org.apache.tomcat.util.descriptor.web.FilterMap;
+
+public class Api {
+    public static void main(String[] args) throws LifecycleException {
+        Tomcat tomcat = new Tomcat();
+        tomcat.setPort(8080);
+        tomcat.setBaseDir("temp");
+
+        Context context = tomcat.addContext("", new File(".").getAbsolutePath());
+        ClassLoader classLoader = tomcat.getClass().getClassLoader();
+        context.setParentClassLoader(classLoader);
+
+        tomcat.addServlet("", "hello", new HttpServlet() {
+            @Override
+            protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+                    throws ServletException, IOException {
+                PrintWriter writer = resp.getWriter();
+                writer.write("Hello World");
+            }
+        }).addMapping("/");
+
+        FilterDef filterDef = new FilterDef();
+        filterDef.setFilterClass(LoggerFilter.class.getName());
+        filterDef.setFilterName("loggerFilter");
+        context.addFilterDef(filterDef);
+
+        FilterMap filterMap = new FilterMap();
+        filterMap.setFilterName("loggerFilter");
+        filterMap.addURLPattern("/*");
+        context.addFilterMap(filterMap);
+
+        tomcat.start();
+        System.out.println("Server is running on http://localhost:8080");
+        tomcat.getServer().await();
+    }
+}
+```
+再次访问 http://localhost:8080 可以看到浏览器输出 `Hello World` 的同时，终端输出了日志。
+
+```ansi
+GET / 200 1ms
+```

@@ -9,7 +9,7 @@ const nextConfig = {
     unoptimized: true
   },
   distDir: 'docs',
-  basePath: process.env.NODE_ENV === 'production' ? '/svn' : '',
+  basePath: process.env.NODE_ENV === 'production' ? '/docs/svn' : '',
 };
 
  

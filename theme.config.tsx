@@ -15,7 +15,7 @@ const config: DocsThemeConfig = {
     );
   },
   project: {
-    link: 'https://github.com/ZhiXiao-Lin/svn'
+    link: 'https://github.com/elljs/svn'
   },
   footer: {
     content: `EllJS @ ${new Date().getFullYear()}`,

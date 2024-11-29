@@ -8,7 +8,7 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  // basePath: process.env.NODE_ENV === 'production' ? '/svn' : '',
+  basePath: process.env.NODE_ENV === 'production' ? '/svn' : '',
 };
  
 const withNextra = nextra({

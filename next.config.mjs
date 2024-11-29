@@ -8,10 +8,8 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  distDir: 'docs',
-  basePath: process.env.NODE_ENV === 'production' ? '/svn/docs' : '',
+  basePath: process.env.NODE_ENV === 'production' ? '/svn' : '',
 };
-
  
 const withNextra = nextra({
   theme: 'nextra-theme-docs',

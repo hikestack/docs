@@ -15,7 +15,7 @@ const config: DocsThemeConfig = {
     );
   },
   project: {
-    link: 'https://github.com/hikestack/docs'
+    link: 'https://github.com/hikestack/'
   },
   footer: {
     content: `HikeStack @ ${new Date().getFullYear()}`,

@@ -1,0 +1,46 @@
+import { Callout } from 'nextra/components';
+
+# 阿里云
+
+```AliyunModule```是一个为 NestJS 集成阿里云云服务的模块。
+
+## 安装
+ 
+```sh npm2yarn
+npm install @hikestack/aliyun
+```
+
+<Callout type="info">
+安装对应的依赖
+</Callout>
+
+```sh npm2yarn
+npm install ali-oss
+```
+
+## 使用
+
+### 对象存储
+
+```ts
+import { ok } from "@/core";
+import {
+	AnyFilesInterceptor,
+	MemoryStorageFile,
+	UploadedFiles,
+} from "@blazity/nest-file-fastify";
+import { AliyunService } from "@hikestack/aliyun";
+import { Controller, Post, UseInterceptors } from "@nestjs/common";
+
+@Controller("file")
+export class FileController {
+	constructor(private readonly aliyunService: AliyunService) {}
+
+	@Post("upload")
+	@UseInterceptors(AnyFilesInterceptor())
+	async uploadFile(@UploadedFiles() files: MemoryStorageFile[]) {
+		const res = await this.aliyunService.OSS.put("avatar.png", files[0]);
+		return ok(res);
+	}
+}
+```

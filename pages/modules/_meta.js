@@ -37,5 +37,8 @@ export default {
   },
   "jvm": {
     title: "JVM模块"
+  },
+  "service": {
+    title: "云服务"
   }
 }

@@ -1,0 +1,120 @@
+import { Callout } from 'nextra/components';
+
+# 腾讯云
+
+```TencentModule```是一个为 NestJS 集成腾讯云云服务的模块。
+
+## 安装
+ 
+```sh npm2yarn
+npm install @hikestack/tencent
+```
+
+<Callout type="info">
+安装对应的依赖
+</Callout>
+
+```sh npm2yarn
+npm install tencentcloud-sdk-nodejs-common
+```
+
+## 使用
+
+### 图形验证
+
+#### 前端
+
+```html showLineNumbers filename="index.html" {12}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover"
+    />
+    <link rel="icon" type="image/svg+xml" href="/logo.png" />
+    <script src="https://turing.captcha.qcloud.com/TCaptcha.js"></script>
+    <title></title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="./src/index.tsx"></script>
+  </body>
+</html>
+```
+
+```tsx showLineNumbers filename="login.tsx"
+const handleVerify = async () => {
+    const captcha = new TencentCaptcha(
+        '你的CaptchaAppId',
+        async (data) => {
+            if (data?.ret !== 0) {
+              // 前端验证
+              return;
+            }
+            
+            const res = await api.verifyCode({
+                mobile: state.mobile,
+                randstr: data.randstr,
+                ticket: data.ticket,
+            });
+
+            // 后端验证
+
+            // 销毁验证码组件
+            captcha.destroy();
+        }
+    );
+    // 展示验证码组件
+    captcha.show();
+};
+```
+
+#### 后端
+```ts
+import { ConfigService } from '@nestjs/config';
+import { TencentService } from '@hikestack/tencent';
+import { RealIp } from '@/decorators';
+import { halt } from '@/utils';
+import { Body, Controller, Post } from '@nestjs/common';
+import { IsDefined } from 'class-validator';
+
+export class VerifyCheckDto {
+  @IsDefined({ message: '手机号必填' })
+  mobile: string;
+
+  @IsDefined({ message: 'randstr参数必填' })
+  randstr: string;
+
+  @IsDefined({ message: 'ticket参数必填' })
+  ticket: string;
+}
+
+@Controller('verify')
+export class VerifyController {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly tencentService: TencentService,
+  ) {
+    super();
+  }
+
+  @Post('check')
+  async check(@Body() dto: VerifyCheckDto, @RealIp() ip: string) {
+    const result = await this.tencentService.describeCaptchaResult({
+      UserIp: ip,
+      Randstr: dto.randstr,
+      Ticket: dto.ticket,
+      CaptchaAppId: Number(this.configService.get('tencent.captcha.appId')),
+      AppSecretKey: this.configService.get('tencent.captcha.appSecret'),
+    });
+    if (result?.CaptchaCode !== 1) {
+      return halt(result?.CaptchaMsg ?? '验证失败');
+    }
+    // 验证成功
+  }
+}
+```

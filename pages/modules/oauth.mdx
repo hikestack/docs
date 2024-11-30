@@ -1,0 +1,138 @@
+# OAuth模块
+
+```OAuthModule``` 是一个专为 NestJS 框架设计的模块，它使得在 NestJS 应用中集成第三方授权登录变得简单和高效。
+
+## 安装
+
+```sh npm2yarn
+npm install @hikestack/oauth
+```
+
+## 使用
+
+导入并注册 ```OAuthModule```
+
+```ts showLineNumbers filename="app.module.ts" {20-30}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { OAuthModule } from "@hikestack/oauth";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		OAuthModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				providers: {
+					github: new GitHubProvider(
+						configService.get("oauth.github.clientId"),
+						configService.get("oauth.github.clientSecret"),
+					),
+				},
+			}),
+		}),
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {7}
+import { Injectable } from "@nestjs/common";
+import { OAuthService } from "@hikestack/oauth";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly oauthService: OAuthService,
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {6,7}
+import { Injectable, Inject } from "@nestjs/common";
+import { OAuthService } from "@hikestack/oauth";
+
+@Injectable()
+export class AppService {
+    @Inject(OAuthService)
+	private readonly oauthService: OAuthService;
+}
+```
+
+授权登录控制器
+
+```ts showLineNumbers filename="oauth.controller.ts"
+import { halt, ok } from "@/core";
+import { BaseController } from "@/core/components";
+import { GitHubProvider, OAuthService } from "@hikestack/oauth";
+import {
+	Body,
+	Controller,
+	Get,
+	HttpStatus,
+	Param,
+	Post,
+	Query,
+	Res,
+} from "@nestjs/common";
+
+@Controller("oauth")
+export class OAuthController extends BaseController {
+	constructor(
+		private readonly oauthService: OAuthService
+	) {
+		super();
+	}
+
+	@Get(":provider/authorize")
+	async getAuthorizationUrl(@Param("provider") provider: string) {
+		return ok(
+			await this.oauthService.getAuthorizationUrl<GitHubProvider>(provider),
+		);
+	}
+
+	@Get(":provider/callback")
+	async callback(
+		@Res() res,
+		@Param("provider") provider: string,
+		@Query("code") code?: string,
+	) {
+		if (provider === "github") {
+			if (!code) {
+				return halt("code is required");
+			}
+			const result = await this.oauthService.getAccessToken<GitHubProvider>(
+				provider,
+				{ code },
+			);
+			const data = new URLSearchParams(result);
+			const info = await this.oauthService.getUserInfo<GitHubProvider>(
+				provider,
+				{
+					accessToken: data.get("access_token")
+				},
+			);
+		}
+
+		return res
+			.code(HttpStatus.FOUND)
+			.redirect("前端页面的地址");
+	}
+}
+```

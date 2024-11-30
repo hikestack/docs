@@ -1,0 +1,212 @@
+# 动态智能体与智能体编排
+
+## 引言
+
+随着人工智能技术的飞速发展，我们正迈向一个由智能体驱动的未来。在不远的将来，我们可以预见到数以亿计的智能体将被部署在各种应用和服务中，从简单的聊天机器人到复杂的自动化系统。这些智能体将无处不在，它们将帮助我们自动化任务、提供个性化服务、甚至做出决策。然而，面对如此庞大的智能体数量，将它们全部硬编码到应用程序中显然是不现实的。这不仅会导致代码库变得臃肿不堪，还会限制系统的灵活性和可扩展性。因此，我们需要一种更加灵活和动态的方法来管理和执行这些智能体。
+
+本文将探讨一种使用远程或动态生成的智能体的技术。
+
+## 什么是 Multi-Agent Orchestrator 框架？
+
+`Multi-Agent Orchestrator`是一个框架，它允许开发者定义、协调和管理多个智能体的行为。这些智能体可以是简单的 AI 模型、复杂的服务或者自定义的逻辑单元。`Multi-Agent Orchestrator` 框架的核心功能是智能体编排，即如何根据输入决定由哪个智能体来处理任务，以及如何将任务的输出传递给下一个智能体。
+
+![flow.jpg](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/7787fafa43aa4cd0bab223e4c5583a15~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1733558207&x-orig-sign=LSTvh8Ba5odWRI8fsfqUYj2IFrQ%3D)
+
+### Classifier
+
+在 `Multi-Agent Orchestrator` 框架中，`Classifier` 是一个关键组件，它负责将输入路由到正确的智能体。`Classifier` 接收用户的输入，并根据预定义的规则或学习到的模式决定哪个智能体最适合处理这个输入。这个过程类似于分类器在机器学习中的作用，它将数据分配到不同的类别中。
+
+以下是一个基于关键词的简单分类器的示例：
+
+```typescript
+import { Agent, Classifier, type ClassifierResult, type ConversationMessage } from "multi-agent-orchestrator";
+
+class KeywordClassifier extends Classifier {
+    private keywordMap: { [keyword: string]: string };
+
+    constructor(keywordMap: { [keyword: string]: string }) {
+        super();
+        this.keywordMap = keywordMap;
+    }
+
+    async processRequest(
+        inputText: string,
+        chatHistory: ConversationMessage[]
+    ): Promise<ClassifierResult> {
+        const lowercaseInput = inputText.toLowerCase();
+
+        for (const [keyword, agentId] of Object.entries(this.keywordMap)) {
+            if (lowercaseInput.includes(keyword)) {
+                const selectedAgent = this.getAgentById(agentId);
+                return {
+                    selectedAgent,
+                    confidence: 0.8
+                };
+            }
+        }
+
+        const defaultAgent = Object.values(this.agents)[0] ?? null;
+        return {
+            selectedAgent: defaultAgent,
+            confidence: 0.5
+        };
+    }
+}
+```
+
+`Classifier` 的输出是一个 `ClassifierResult` 对象，其中包含了选定的智能体和处理输入的可信度。这允许 `Multi-Agent Orchestrator` 框架在多个智能体之间做出更智能的决策。
+
+## VM 沙箱
+
+为了确保外部代码的安全性和隔离性，`vm` 模块在 Node.js 中提供了一个沙箱环境，允许代码在受限的上下文中执行。这种沙箱环境可以防止执行的代码访问或修改全局状态，从而保护主应用程序免受潜在的恶意代码侵害。
+
+在提供的代码示例中，`vm.createContext` 方法用于创建一个新的上下文环境，而 `vm.runInContext` 方法用于在这个上下文中执行代码。这样，智能体的代码就可以在隔离的环境中运行，而不会污染全局命名空间。
+
+```typescript
+import vm from 'node:vm';
+
+const createAgent = (code: string) => {
+    const ctx = vm.createContext({
+        model,
+        ai,
+    });
+
+    vm.runInContext(`
+        const processRequest = ${code}
+    `, ctx);
+
+    return class extends Agent {
+        async processRequest(...params: any[]) {
+            return vm.runInContext('processRequest', ctx)(...params);
+        }
+    }
+}
+```
+
+## 动态智能体代码加载与编排
+
+动态智能体代码加载和编排允许系统在运行时根据需要加载和卸载智能体代码。这种技术结合了 `multi-agent-orchestrator` 框架和 VM 沙箱，提供了一种灵活且安全的方式来管理和执行智能体。
+
+以下是如何实现动态智能体加载和编排的步骤：
+
+1.  **定义智能体代码**：智能体的代码可以存储在外部文件中，或者以字符串的形式动态生成。
+
+2.  **创建沙箱环境**：使用 `vm.createContext` 创建一个沙箱环境，并定义智能体所需的外部依赖。
+
+3.  **加载智能体代码**：使用 `vm.runInContext` 在沙箱环境中执行智能体代码，从而创建智能体的实例。
+
+4.  **注册智能体**：将加载的智能体注册到 `MultiAgentOrchestrator` 实例中。
+
+5.  **智能体编排**：使用 `Classifier` 来决定哪个智能体处理特定的输入，并使用 `MultiAgentOrchestrator` 来协调智能体的行为。
+
+6.  **执行和响应**：智能体处理输入并返回输出，`MultiAgentOrchestrator` 将输出路由回用户。
+
+通过这种技术，开发者可以灵活地添加或移除智能体，而不需要重启整个系统。这为开发复杂的 AI 应用提供了强大的灵活性和可扩展性。
+
+完整代码：
+
+```typescript
+
+import * as ai from 'ai';
+import { Agent, Classifier, type ClassifierResult, type ConversationMessage, MultiAgentOrchestrator } from "multi-agent-orchestrator";
+import vm from 'node:vm';
+import { createOllama } from 'ollama-ai-provider';
+
+const ollama = createOllama({
+	baseURL: "http://127.0.0.1:11434/api",
+});
+const model = ollama('llama3.2');
+
+const createAgent = (code: string) => {
+	const ctx = vm.createContext({
+		model,
+		ai,
+	});
+
+	vm.runInContext(`
+		const processRequest = ${code}
+	`, ctx);
+
+	return class extends Agent {
+		async processRequest(...params: any[]) {
+			return vm.runInContext('processRequest', ctx)(...params);
+		}
+	}
+}
+
+const TechAgent = createAgent(`
+	async (prompt) => {
+		const { textStream } = await ai.streamText({
+			model,
+			prompt
+		});
+
+		return textStream;
+	};
+`);
+
+export class KeywordClassifier extends Classifier {
+	private keywordMap: { [keyword: string]: string };
+
+	constructor(keywordMap: { [keyword: string]: string }) {
+		super();
+		this.keywordMap = keywordMap;
+	}
+
+	async processRequest(
+		inputText: string,
+		chatHistory: ConversationMessage[]
+	): Promise<ClassifierResult> {
+		const lowercaseInput = inputText.toLowerCase();
+
+		for (const [keyword, agentId] of Object.entries(this.keywordMap)) {
+			if (lowercaseInput.includes(keyword)) {
+				const selectedAgent = this.getAgentById(agentId);
+				return {
+					selectedAgent,
+					confidence: 0.8
+				};
+			}
+		}
+
+		const defaultAgent = Object.values(this.agents)[0] ?? null;
+		return {
+			selectedAgent: defaultAgent,
+			confidence: 0.5
+		};
+	}
+}
+
+const classifier = new KeywordClassifier({
+	'人工智能': 'tech-agent',
+	'量化交易': 'finance-agent',
+});
+const orchestrator = new MultiAgentOrchestrator({ classifier });
+
+orchestrator.addAgent(new TechAgent({
+	name: "tech-agent",
+	description: "专注于包括软件开发、硬件、人工智能、网络安全、区块链、云计算、新兴技术创新以及与技术产品和服务相关的定价/成本的技术领域。",
+}));
+
+const userId = "user-1";
+const sessionId = "session-1";
+const query = "人工智能最新的趋势是什么？";
+
+const response = await orchestrator.routeRequest(query, userId, sessionId);
+
+for await (const chunk of response.output) {
+	if (typeof chunk === "string") {
+		process.stdout.write(chunk);
+	} else {
+		console.error("Received unexpected chunk type:", typeof chunk);
+	}
+}
+```
+
+效果：
+
+![Kapture 2024-11-23 at 15.30.45.gif](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/7b345eddbf6b41da9a6d9a6f16c3b03a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1733558207&x-orig-sign=l7jf7nrQRJpXxxEM1eUEc6z3l8c%3D)
+
+## 结论
+
+`Multi-Agent Orchestrator` 框架和 `VM` 沙箱技术为动态智能体的创建和编排提供了一个强大的工具集。通过动态加载智能体代码，开发者可以构建出更加灵活和响应迅速的 AI 系统。随着 AI 技术的不断进步，这种动态智能体编排技术将在构建复杂的智能系统中发挥越来越重要的作用。

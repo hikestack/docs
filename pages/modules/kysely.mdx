@@ -1,0 +1,190 @@
+import { Callout } from 'nextra/components';
+
+# Kysely模块
+
+```KyselyModule```是一个为 NestJS 应用提供类型安全的SQL查询生成器的模块。通过将数据库Schema公开给TypeScript编译器，以获得自动完成表名、列名、别名等的能力，帮助开发者构建类型安全的SQL查询。
+
+## 安装
+ 
+```sh npm2yarn
+npm install @hikestack/kysely
+```
+
+<Callout type="info">
+安装对应的依赖[```kysely```](https://github.com/kysely-org/kysely)
+</Callout>
+
+```sh npm2yarn
+npm install kysely
+```
+
+## 使用
+
+导入并注册 ```KyselyModule```
+
+```ts showLineNumbers filename="app.module.ts" {22-30}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { KyselyModule } from "@hikestack/kysely";
+import { MysqlDialect } from "kysely";
+import { createPool } from "mysql2";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		KyselyModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				log: configService.get("db.kysely.log"),
+				dialect: new MysqlDialect({
+					pool: createPool(configService.get("db.kysely.connection")),
+				}),
+			}),
+		})
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {8}
+import { Injectable } from "@nestjs/common";
+import { KyselyService } from "@hikestack/kysely";
+import { DB } from "./types";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly kyselyService: KyselyService<DB>,
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {7,8}
+import { Injectable, Inject } from "@nestjs/common";
+import { KyselyService } from "@hikestack/kysely";
+import { DB } from "@/types";
+
+@Injectable()
+export class AppService {
+    @Inject(KyselyService)
+	private readonly kyselyService: KyselyService<DB>;
+}
+```
+
+数据库Schema的示例
+
+```ts showLineNumbers filename="types.ts"
+import type { ColumnType } from "kysely";
+
+export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
+  ? ColumnType<S, I | undefined, U>
+  : ColumnType<T, T | undefined, T>;
+
+export type Timestamp = ColumnType<Date, Date | string, Date | string>;
+
+export type Tenant = {
+    id: Generated<number>;
+    name: string | null;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Generated<Timestamp>;
+    deletedAt: Timestamp | null;
+    ownerId: number | null;
+};
+
+export type User = {
+    id: Generated<number>;
+    email: string | null;
+    password: string | null;
+    name: string | null;
+    avatar: string | null;
+    status: Generated<string>;
+    createdAt: Generated<Timestamp>;
+    updatedAt: Generated<Timestamp>;
+    deletedAt: Timestamp | null;
+    tenantId: number | null;
+};
+
+export type DB = {
+    t_tenant: Tenant;
+    t_user: User;
+};
+```
+
+## 使用查询构建器
+
+```ts showLineNumbers filename="tenant.service.ts"
+import {
+	PaginationDto,
+	QueryTenantDto,
+	TenantDto,
+} from "@/common";
+import { halt } from "@/core";
+import { BaseService } from "@/core/components";
+import { Injectable } from "@nestjs/common";
+import { KyselyService } from "@hikestack/kysely";
+import { DB } from "@/types";
+
+@Injectable()
+export class TenantService extends BaseService {
+
+    constructor(
+		private readonly kyselyService: KyselyService<DB>,
+	) {}
+
+	async query({
+		pagination = { current: 1, pageSize: 10 },
+		name,
+		sort,
+	}: QueryTenantDto): Promise<PaginationDto<TenantDto>> {
+		let qb = this.kyselyService.selectFrom("t_tenant as t");
+
+		const { total } = await qb
+			.select(({ fn }) => [fn.count<number>("t.id").as("total")])
+			.executeTakeFirst();
+
+		qb = qb.select([
+			"t.id",
+			"t.name",
+			"t.createdAt",
+			"t.updatedAt",
+			"t.deletedAt",
+		]);
+
+		if (sort) {
+			for (const [k, v] of Object.entries(sort)) {
+				qb = qb.orderBy(`t.${k}` as any, v);
+			}
+		} else {
+			qb = qb.orderBy("t.createdAt", "asc");
+		}
+
+		const list = (await qb
+			.limit(pagination.pageSize)
+			.offset((pagination.current - 1) * pagination.pageSize)
+			.execute()) as TenantDto[];
+
+		return {
+			...pagination,
+			total,
+			totalPage: Math.ceil(total / pagination.pageSize),
+			list,
+		};
+	}
+}
+```

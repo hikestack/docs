@@ -1,0 +1,228 @@
+# 动态模块
+
+使用模块是构建高效、可维护和可扩展的应用程序的关键所在。模块使得开发者能够清晰地分离关注点，将应用程序的不同部分封装到独立的模块中。
+
+以日志模块为例，展示如何创建一个标准的 ```NestJS``` 动态模块，以下是详细的步骤指南：
+
+## 目录结构
+
+首先，你需要为日志模块创建一个基本的文件结构。这通常包括一个模块文件（如 ```logger.module.ts```）、一个服务文件（如 ```logger.service.ts```），以及可能需要的接口（```interfaces```）和适配器（```adapters```）。
+
+```tree
+├── src
+│	├── configs
+│	│   ├── logger-config.ts
+│	│   └── index.ts
+│	├── logger
+│	│	├── adapters
+│	│   │	├── winston-adapter.ts
+│	│   │	└── index.ts
+│	│	├── interfaces
+│	│   │	├── logger.interface.ts
+│	│   │	├── logger-module-options.ts
+│	│   │	└── index.ts
+│   │   ├── logger.module-definition.ts
+│   │   ├── logger.service.ts
+│   │   ├── logger.module.ts
+│   │   └── index.ts
+│	├── app.controller.ts
+│	├── app.service.ts
+│   ├── app.module.ts
+│	└── main.ts
+└── tsconfig.json
+```
+
+## 定义接口
+
+定义服务需要实现的 ```ILogger``` 接口，这里直接继承自 ```Nest``` 内部提供的 ```LoggerService``` 接口。
+
+```ts filename="interfaces/logger.interface.ts"
+import { LoggerService } from "@nestjs/common";
+
+export interface ILogger extends LoggerService {}
+```
+
+在 ```logger.service.ts``` 文件中，通过模块配置将具体的实现类传递给服务。
+
+```ts filename="logger.service.ts"
+import { Inject, Injectable } from "@nestjs/common";
+import { ILogger, LoggerModuleOptions } from "./interfaces";
+import { MODULE_OPTIONS_TOKEN } from "./logger.module-definition";
+
+@Injectable()
+export class LoggerService implements ILogger {
+	protected readonly logger: ILogger;
+	constructor(
+		@Inject(MODULE_OPTIONS_TOKEN)
+		private readonly options: LoggerModuleOptions,
+	) {
+		if (!this.options.logger) {
+			throw new Error("LoggerModuleOptions.logger is not defined");
+		}
+		this.logger = this.options.logger;
+	}
+
+	log(message: any, ...optionalParams: any[]) {
+		this.logger.log(message, ...optionalParams);
+	}
+
+	error(message: any, ...optionalParams: any[]) {
+		this.logger.error(message, ...optionalParams);
+	}
+
+	warn(message: any, ...optionalParams: any[]) {
+		this.logger.warn(message, ...optionalParams);
+	}
+}
+```
+
+## 实现服务
+
+```WinstonAdapter``` 使用 [winston](https://github.com/winstonjs/winston) 实现实际的日志记录功能，比如将日志信息输出到控制台、文件或其他日志存储系统。
+
+```ts filename="adapters/winston.adapter.ts"
+import { inspect } from "util";
+import * as winston from "winston";
+import { ILogger } from "../../interfaces";
+
+export class WinstonAdapter implements ILogger {
+	protected readonly logger: winston.Logger;
+
+	constructor(private readonly options: winston.LoggerOptions) {
+		this.logger = winston.createLogger(this.options);
+	}
+
+	log(message: any, ...optionalParams: any[]) {
+		this.logger.info(this.format(message, ...optionalParams));
+	}
+
+	error(message: any, ...optionalParams: any[]) {
+		this.logger.error(this.format(message, ...optionalParams));
+	}
+
+	warn(message: any, ...optionalParams: any[]) {
+		this.logger.warn(this.format(message, ...optionalParams));
+	}
+
+	private format(...messages: unknown[]) {
+		return messages
+			.map((m) => (typeof m === "string" ? m : inspect(m)))
+			.join(" ");
+	}
+}
+```
+
+## 构建模块
+
+```NestJS``` 提供了一个 ```ConfigurableModuleBuilder``` 类用于便捷的构建动态模块的配置。
+
+```ts filename="interfaces/logger.module-definition.ts"
+import { ConfigurableModuleBuilder } from "@nestjs/common";
+import { LoggerModuleOptions } from "./interfaces";
+
+export const {
+	ConfigurableModuleClass,
+	MODULE_OPTIONS_TOKEN,
+	OPTIONS_TYPE,
+	ASYNC_OPTIONS_TYPE,
+} = new ConfigurableModuleBuilder<LoggerModuleOptions>()
+	.setExtras(
+		{
+			isGlobal: true,
+		},
+		(definition, extras) => ({
+			...definition,
+			global: extras.isGlobal,
+		}),
+	)
+	.build();
+```
+
+使用 ```@Module``` 装饰器来定义日志模块。这个模块将包含日志服务作为提供者，并可以配置为动态模块，以便在应用程序的不同部分中按需加载。
+
+```ts filename="logger.module.ts"
+import { DynamicModule, Module } from "@nestjs/common";
+import {
+	ASYNC_OPTIONS_TYPE,
+	ConfigurableModuleClass,
+	OPTIONS_TYPE,
+} from "./logger.module-definition";
+import { LoggerService } from "./logger.service";
+
+@Module({
+	providers: [LoggerService],
+	exports: [LoggerService],
+})
+export class LoggerModule extends ConfigurableModuleClass {
+	static register(options: typeof OPTIONS_TYPE): DynamicModule {
+		return {
+			...super.register(options),
+		};
+	}
+
+	static registerAsync(options: typeof ASYNC_OPTIONS_TYPE): DynamicModule {
+		return {
+			...super.registerAsync(options),
+		};
+	}
+}
+```
+
+## 注册模块
+
+由于它是一个动态模块，你可以使用 ```LoggerModule.register()``` 或 ```LoggerModule.registerAsync()``` 方法在根模块或其他模块中导入它。
+
+```ts filename="app.module.ts"
+import path from "path";
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { LoggerModule } from "@/logger";
+import { configs } from "./configs";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		LoggerModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				logger: new WinstonAdapter(configService.get("logger")),
+			}),
+		}),
+		...
+	],
+	providers: [
+		...
+	],
+})
+export class AppModule {}
+```
+
+## 使用服务
+
+最后，你可以在需要记录日志的地方注入 LoggerService 并使用它的方法。这可以通过构造函数注入或其他依赖注入机制来实现。
+在这个日志模块中，我们通过适配器模式实现了对```Winston```日志库的封装，使得日志服务能够灵活地切换到不同的日志框架，而无需修改服务调用方的代码。
+
+```ts filename="app.service.ts"
+import { Injectable } from "@nestjs/common";
+import { LoggerService } from "@/logger";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly loggerService: LoggerService,
+	) {
+		loggerService.log("Hello!");
+	}
+}
+```

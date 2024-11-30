@@ -1,0 +1,310 @@
+# Node.js中使用JVM
+
+有多种途径可以实现Node.js与Java代码之间的跨语言交互，如将Node.js代码编译为`GraalVM`支持的中间语言，或利用C++、Rust等语言编写JNI（Java Native Interface）插件。本文将重点介绍通过`node-gyp`构建自定义Node.js模块的方式来实现这一功能。
+
+JNI作为Java平台标准版（Java SE Platform）的关键组成部分，为Java代码与其他语言编写的代码之间的交互提供了桥梁。借助JNI，你可以在C/C++代码中调用Java方法，反之亦然。
+
+接下来，我们将通过一个示例来展示如何在C++中使用JNI来实例化一个Java类并调用其方法。
+
+**1. 首先编写一个简单的 Java 类**
+
+```java
+package com.example;  
+  
+public class MyClass {  
+    public String getMessage(String message) {  
+        return "Hello " + message;  
+    }
+}
+```
+
+**2. 编译 Java 类**
+
+```shell
+javac com/example/MyClass.java
+```
+
+**3. 使用node-gyp构建模块**
+
+创建一个 node-gyp 模块
+
+```shell
+mkdir my-node-app
+cd my-node-app
+npm install node-gyp node-addon-api
+node-gyp init
+```
+
+使用 `node-gyp init` 在当前目录下生成配置文件，包括 `binding.gyp`
+
+```shell
+my-node-app/ 
+├── binding.gyp 
+├── package.json 
+└── src/ 
+    ├── index.js
+    └── my_node_addon.cpp
+```
+
+创建 my_node_addon.cpp 用于初始化 JVM 和调用 JNI 
+
+```cpp
+// my_node_addon.cpp
+#include <jni.h>  
+#include <dlfcn.h> // 用于动态加载 Java 库  
+#include "node_addon_api.h"   
+  
+// JVM 和 JNIEnv 的全局变量  
+JavaVM* jvm;  
+JNIEnv* jni;  
+  
+// 初始化 JVM
+bool initializeJVM(const char* classPath) {  
+    JavaVMInitArgs vm_args;  
+    JavaVMOption* options = new JavaVMOption[1];  
+    options[0].optionString = const_cast<char*>(classPath);  
+    options[0].ignoreUnrecognized = JNI_FALSE;  
+    vm_args.version = JNI_VERSION_1_8;  
+    vm_args.nOptions = 1;  
+    vm_args.options = options;  
+    vm_args.ignoreUnrecognized = false;  
+  
+    if (JNI_CreateJavaVM(&jvm, (void**)&jni, &vm_args) != JNI_OK) {  
+        return false;  
+    }  
+    return true;  
+}
+  
+// 清理 JVM  
+void cleanupJVM() {  
+    if (jvm != nullptr) {  
+        jvm->DestroyJavaVM();  
+        jvm = nullptr;  
+        jni = nullptr;  
+    }  
+}
+
+Napi::Value CallJava(const Napi::CallbackInfo& info) {  
+    Napi::Env env = info.Env();
+    
+    if (info.Length() < 3) {  
+        Napi::TypeError::New(env, "Expected class name, method name, and argument as arguments").ThrowAsJavaScriptException();  
+        return env.Null();  
+    } 
+  
+    std::string className = info[0].As<Napi::String>().Utf8Value();  
+    std::string methodName = info[1].As<Napi::String>().Utf8Value();
+    std::string arg = info[2].As<Napi::String>().Utf8Value();
+  
+    // 查找 Java 类  
+    jclass cls = jni->FindClass(className.c_str());  
+    if (cls == nullptr) {  
+        env.ThrowTypeError("Java class not found");  
+        return env.Null();  
+    }  
+  
+    // 获取类的构造方法  
+    jmethodID ctor = jni->GetMethodID(cls, "<init>", "()V");  
+    if (ctor == nullptr) {  
+        env.ThrowTypeError("Constructor not found");  
+        return env.Null();  
+    }  
+  
+    // 创建 Java 类的实例  
+    jobject obj = jni->NewObject(cls, ctor);  
+    if (jni->ExceptionOccurred()) {  
+        jni->ExceptionDescribe();  
+        jni->ExceptionClear();  
+        env.ThrowTypeError("Failed to create Java object");  
+        return env.Null();  
+    }  
+  
+    // 查找实例方法  
+    jmethodID mid = jni->GetMethodID(cls, methodName.c_str(), "()Ljava/lang/String;");  
+    if (mid == nullptr) {  
+        env.ThrowTypeError("Java method not found");  
+        return env.Null();  
+    }
+    
+    jstring argStr = jni->NewStringUTF(arg.c_str()); 
+  
+    // 调用实例方法  
+    jstring result = (jstring)jni->CallObjectMethod(obj, mid, argStr);  
+    if (jni->ExceptionOccurred()) {  
+        jni->ExceptionDescribe();  
+        jni->ExceptionClear();  
+        env.ThrowTypeError("Java exception occurred during method call");  
+        return env.Null();  
+    }  
+  
+    // 将 Java 字符串转换为 C++ 字符串并返回给 Node.js  
+    const char* resultChars = jni->GetStringUTFChars(result, nullptr);  
+    std::string resultStr(resultChars);  
+    jni->ReleaseStringUTFChars(result, resultChars);  
+  
+    // 清理本地引用  
+    jni->DeleteLocalRef(obj);  
+    jni->DeleteLocalRef(result);  
+  
+    return Napi::String::New(env, resultStr);  
+}  
+  
+Napi::Object Init(Napi::Env env, Napi::Object exports) {  
+    const char* classPath = "-Djava.class.path=/path/to/your/java/classes"; // Java 类路径  
+    // 初始化 JVM
+    if (!initializeJVM(classPath)) {  
+        throw Napi::Error::New(env, "Failed to initialize JVM");  
+    } 
+  
+    // 绑定函数到 exports  
+    exports.Set(Napi::String::New(env, "callJava"), Napi::Function::New(env, CallJava));  
+  
+    // 注册清理 JVM 的钩子  
+    Napi::AddCleanupHook([](void* arg) {   
+        cleanupJVM();  
+    }, nullptr);  
+  
+    return exports;  
+}
+  
+NODE_API_MODULE(NODE_GYP_MODULE_NAME, Init)
+```
+
+```shell
+// binding.gyp
+{  
+  "targets": [  
+    {  
+      "target_name": "my_node_addon",  
+      "sources": [ "my_node_addon.cpp"],  
+      "include_dirs": ["<!(node -p \"require('node-addon-api').include\")"],  
+      "dependencies": ["<!(node -p \"require('node-addon-api').gyp\")"],  
+      "cflags!": [ "-fno-exceptions" ],  
+      "cflags_cc!": [ "-fno-exceptions" ],    
+      "conditions": [         
+        ['OS=="linux"', {  
+          "cflags+": ["-I/usr/lib/jvm/java-8-openjdk-amd64/include", "-I/usr/lib/jvm/java-8-openjdk-amd64/include/linux"],  
+          "libraries": ["-L/usr/lib/jvm/java-8-openjdk-amd64/jre/lib/amd64/server", "-ljvm"]  
+        }]  
+      ]  
+    }  
+  ]  
+}
+```
+
+**4. 构建插件**
+
+```shell
+node-gyp configure build
+```
+
+**5. 在 Node.js 中使用**
+
+```js
+const addon = require('my-node-addon');
+
+addon.callJava('com/example/MyClass', 'getMessage', 'Node.js'); // Hello Node.js
+```
+
+### 使用 node-java 库简化工作流程
+
+使用 `node-java` 库可以简化 Node.js 调用 Java 代码的过程，因为它提供了一个高级别的接口来加载 Java 类、创建 Java 对象以及调用 Java 方法。使得我们无需直接处理 JNI（Java Native Interface）的复杂性，
+下面我们使用`node-java`完成同样的效果。
+
+首先需要安装`node-java`包：
+
+```shell
+npm install java
+```
+
+修改代码使用`node-java`
+
+```js
+const java = require('java');  
+
+// 设置 classpath
+java.classpath.push("/path/to/your/java/classes");
+
+// 加载 Java 类  
+const MyClass = java.import('com.example.MyClass');  
+
+const myClass = new MyClass();
+// getMessageSync 是 node-java 动态代理的 getMessage 方法的同步版本
+const result = myClass.getMessageSync('Node.js');  
+
+console.log(result); // Hello Node.js
+```
+
+### 在TypeScript中使用
+
+假设你有一个 Web 项目，目录结构如下：
+
+```shell
+web-framework/
+└── java/
+│   ├── lib/                 
+│   │   ├── fastjson-1.2.83.jar
+│   │   └── ...
+│   ├── bin/                 
+│   │   ├── MyClass.class
+│   │   └── ...
+├── src/                         
+│   ├── index.ts                 
+│   ├── service/                 
+│   │   ├── JvmService.ts
+│   │   └── ...
+└── ...                          
+```
+
+将 node-java 封装成一个服务。
+
+```ts
+// JvmService.ts
+import { Injectable } from '@nestjs/common';
+import fg from 'fast-glob';
+import java from 'java';
+import path from 'path';
+
+@Injectable()
+export class JvmService {
+  private readonly jvm: any;
+  constructor() {
+    // 自动扫描所有的 .jar 文件并加入到 classpath
+    fg.globSync('java/lib/*.jar', {
+      cwd: process.cwd(),
+      absolute: true,
+      objectMode: true,
+      unique: true,
+    }).forEach((file) => {
+      console.log('加载jar包:', file.name);
+      java.classpath.push(file.path);
+    });
+    // 将自己编写的 Java 文件加入 classpath
+    java.classpath.push(path.join(process.cwd(), 'java/bin'));
+    this.jvm = java;
+  }
+
+  get JVM() {
+    return this.jvm;
+  }
+
+  import(path: string) {
+    return this.jvm.import(path);
+  }
+}
+```
+
+使用 JvmService
+
+```ts
+@Injectable()
+export class TestService {
+  constructor(
+    private readonly jvmService: JvmService,
+  ) {
+    const myClass = this.jvmService.import('com/example/MyClass');
+    const result = myClass.getMessageSync('Node.js');  
+
+    console.log(result); // Hello Node.js
+  }
+```

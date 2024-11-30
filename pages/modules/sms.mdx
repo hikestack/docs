@@ -1,0 +1,76 @@
+# 短信模块
+
+```SmsModule``` 是一个为 NestJS 集成短信通道的模块。
+
+## 安装
+
+```sh npm2yarn
+npm install @hikestack/sms
+```
+
+## 使用
+
+导入并注册 ```SmsModule```
+
+```ts showLineNumbers filename="app.module.ts" {20-30}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { SmsModule, SmsBaoProvider } from "@hikestack/sms";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		SmsModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				providers: {
+					smsbao: new SmsBaoProvider(
+						configService.get("sms.smsbao.clientId"),
+						configService.get("sms.smsbao.clientSecret"),
+					),
+				},
+			}),
+		}),
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {7}
+import { Injectable } from "@nestjs/common";
+import { SmsService } from "@hikestack/sms";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly smsService: SmsService
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {6,7}
+import { Injectable, Inject } from "@nestjs/common";
+import { SmsService } from "@hikestack/sms";
+
+@Injectable()
+export class AppService {
+    @Inject(SmsService)
+	private readonly smsService: SmsService
+}
+```

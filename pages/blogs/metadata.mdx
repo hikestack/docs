@@ -1,0 +1,161 @@
+# 元编程
+
+元编程本质上是一种编程范式，它允许程序在运行时或编译时生成、修改或操作其他程序（包括它自身）的代码、结构或行为。
+
+元编程为开发者提供了强大的工具和灵活性，以动态地操作和扩展应用程序。装饰器和反射API、TypeScript编译器API，都是在 ```NestJS``` 中常用的实现元编程的策略。
+
+下面，我将对这几种方式进行详细介绍：
+
+
+## 装饰器和反射API
+
+创建元数据装饰器
+
+```ts
+import { SetMetadata } from "@nestjs/common";
+
+export const PUBLIC = "auth:public";
+export const Public = () => SetMetadata(PUBLIC, true);
+```
+
+使用 ``` ModulesContainer ``` 获取所有模块从中获取我们感兴趣的控制器类，然后通过 ```MetadataScanner``` 扫描该控制器的所有方法。
+
+```ts
+import { Inject, Injectable, OnModuleInit } from "@nestjs/common";
+import { MetadataScanner, ModulesContainer } from "@nestjs/core";
+import { PUBLIC } from "./decorators";
+
+@Injectable()
+export class AppService implements OnModuleInit {
+	constructor(
+		private readonly modulesContainer: ModulesContainer,
+		private readonly metadataScanner: MetadataScanner,
+	) {}
+
+	async onModuleInit() {
+		[...this.modulesContainer.values()].forEach((module) => {
+			module.controllers.forEach((controller) => {
+				const isPublic =
+					Reflect.getMetadata(PUBLIC, controller.metatype) ?? false;
+				console.log(`${controller.name} isPublic: ${isPublic}`);
+
+				const methods = this.metadataScanner.getAllMethodNames(
+					controller.instance,
+				);
+				methods.forEach((method) => {
+					const isPublic =
+						Reflect.getMetadata(PUBLIC, controller.instance[method]) ?? false;
+					console.log(`${controller.name}.${method} isPublic: ${isPublic}`);
+				});
+			});
+		});
+	}
+}
+```
+
+:::tip 提示
+需要先导入 ```DiscoveryModule``` 才能使用使用 ``` ModulesContainer ``` 和 ```MetadataScanner```。
+:::
+
+```ts
+import { DynamicModule, Module } from "@nestjs/common";
+import { DiscoveryModule } from "@nestjs/core";
+import { AppService } from "./app.service";
+
+@Module({
+	imports: [DiscoveryModule],
+	providers: [AppService],
+	exports: [AppService],
+})
+export class AuthModule {}
+
+```
+
+
+## TypeScript编译器API
+
+为了简单起见我们使用 [ts-morph](https://github.com/dsherret/ts-morph) 操作 ```TypeScript``` 编译器API
+
+加载所有源文件
+
+```ts
+const rootPath = path.resolve(__dirname);
+const project = new tsMorph.Project({
+	tsConfigFilePath: path.resolve(rootPath, "./tsconfig.json"),
+});
+
+const sourceFiles = project.getSourceFiles();
+```
+
+可针对感兴趣的文件进行操作
+
+```ts
+sourceFiles.forEach((sf) => {
+	sf.getEnums().forEach((enumDeclaration) => {
+		const enumName = enumDeclaration.getName();
+		const members = enumDeclaration.getMembers().map((member) => {
+			return member.getValue();
+		});
+	});
+
+	sf.getClasses().forEach((classDeclaration) => {
+		const className = classDeclaration.getName();
+
+		classDeclaration.getMethods().forEach((method) => {
+			const methodName = method.getName();
+
+			method.getDecorators().forEach((decorator) => {
+				const name = decorator.getName();
+				const args = decorator.getArguments();
+			});
+
+			method.getParameters().map((parameter) => {
+				const name = parameter.getName();
+				const type = parameter.getType();
+
+				parameter.getDecorators().forEach((decorator) => {
+				});	
+			});
+
+			const returnType = method.getReturnType();
+		});
+	});
+});
+```
+:::tip 提示
+获取类的所有属性（包括继承的属性）
+:::
+
+```ts
+private getAllProperties(
+	sourceFiles: tsMorph.SourceFile[],
+	classDeclaration: tsMorph.ClassDeclaration,
+): tsMorph.ClassInstancePropertyTypes[] {
+	let properties: tsMorph.ClassInstancePropertyTypes[] = [
+		...classDeclaration.getInstanceProperties(),
+	];
+
+	const baseTypeNode = classDeclaration.getBaseClass();
+
+	if (baseTypeNode) {
+		const baseClassName = baseTypeNode.getName();
+
+		const baseClassDeclaration = sourceFiles.reduce(
+			(acc, sourceFile) => {
+				const classDecl = sourceFile.getClass(baseClassName);
+				return classDecl ? classDecl : acc;
+			},
+			undefined as tsMorph.ClassDeclaration | undefined,
+		);
+
+		if (baseClassDeclaration) {
+			properties = [
+				...properties,
+				...this.getAllProperties(sourceFiles, baseClassDeclaration),
+			];
+		}
+	}
+
+	return properties;
+}
+```

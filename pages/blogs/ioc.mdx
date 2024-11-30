@@ -1,0 +1,88 @@
+# 控制反转
+
+IoC，即控制反转，是一种编程思想，其主要目的是将原本由代码直接操控的对象的调用权交给第三方（通常是一个容器）来控制，以解耦代码，提高可维护性。
+
+IoC 容器负责创建对象、管理对象之间的关系，并在需要的时候将对象注入到代码中。这样，代码就不再直接依赖于具体的对象实例，而是依赖于 IoC 容器的配置和注入。
+
+在 Web 框架中，IoC 容器的使用非常广泛。框架可以通过 IoC 容器来管理各个组件（如控制器、服务、中间件等）的生命周期和依赖关系，从而实现组件之间的松耦合和高内聚。同时，IoC 容器还可以方便地实现依赖注入，使得代码更加简洁和易于测试。
+
+
+## IoC 容器的实现
+
+接下来，我们将从零开始，使用 TypeScript 实现一个简单的 IoC 容器。
+
+1. **定义容器接口**
+
+首先，我们需要定义一个 IoC 容器的接口，规定容器需要实现的方法。
+
+```typescript
+interface IContainer {
+  register<T>(key: symbol, instance: { new (...args: any[]): T }): void;
+  resolve<T>(key: symbol): T;
+}
+```
+
+这里我们定义了两个方法：`register` 用于将类型与实现绑定，`resolve` 用于根据类型获取实例。
+
+2. **实现容器类**
+
+接下来，我们实现 IoC 容器的具体类。
+
+```typescript
+class Container implements IContainer {
+  private registry: Map<symbol, any> = new Map();
+
+  register<T>(key: symbol, instance: { new (...args: any[]): T }): void {
+    this.registry.set(key, instance);
+  }
+
+  resolve<T>(key: symbol): T {
+    const instance = this.registry.get(key);
+    if (!instance) {
+      throw new Error(`Service ${key.description} not registered.`);
+    }
+    return new instance() as T;
+  }
+}
+```
+
+在 `Container` 类中，我们使用 `Map` 来存储类型与实现的映射关系。`register` 方法用于添加映射，`resolve` 方法用于根据类型获取实例。
+
+3. **使用 IoC 容器**
+
+现在我们可以使用 `Container` 来管理对象的依赖关系。
+
+```typescript
+// 定义服务接口
+interface IUserService {
+  getUserById(id: number): any;
+}
+
+// 实现服务接口
+class UserService implements IUserService {
+  getUserById(id: number) {
+    // 模拟从数据库获取用户信息的操作
+    return { id, name: `User ${id}` };
+  }
+}
+
+// 创建 IoC 容器实例
+const container = new Container();
+
+// 注册服务实现到容器
+const userServiceKey = Symbol('UserService');
+container.register<IUserService>(userServiceKey, UserService);
+
+// 从容器中解析服务实例
+const userService: IUserService = container.resolve<IUserService>(userServiceKey);
+
+// 使用服务实例
+const user = userService.getUserById(1);
+console.log(user);
+```
+
+在上面的示例中，我们首先定义了一个 `IUserService` 接口和一个实现该接口的 `UserService` 类。然后，我们创建了一个 `Container` 实例，并使用 `register` 方法将 `IUserService` 绑定到一个唯一的 `Symbol` 上。最后，我们通过 `resolve` 方法从容器中获取 `IUserService` 的实例，并调用其方法来获取用户信息。
+
+## 总结
+
+通过本文的介绍，我们了解了 IoC 容器的概念和在 Web 框架中的用法，并从零开始实现了一个简单的 IoC 容器。这个容器虽然简单，但已经具备了 IoC 容器的基本功能。在实际项目中，我们需要更复杂的 IoC 容器来支持更多的功能，如依赖注入的自动解析、生命周期管理等。

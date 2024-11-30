@@ -1,0 +1,119 @@
+# 循环引用
+
+在 TypeScript 中，构建大型应用程序或框架时，可能会遇到循环引用的问题。循环引用通常发生在两个或多个模块或类相互依赖，形成一个闭环的情况。这可能导致代码难以维护，甚至在某些情况下引发运行时错误。
+本文将解释什么是循环引用，并通过一个 `UserService` 和 `OrderService` 的例子来说明问题，然后展示如何通过代理（Proxy）和接口（Interface）来解决循环引用。
+
+
+## 什么是循环引用？
+
+循环引用是指两个或多个对象或模块相互引用对方，形成一个闭环。在 TypeScript 中，当两个类相互导入对方时，就可能发生循环引用。例如，类 A 依赖于类 B 的实例，而类 B 又依赖于类 A 的实例，这就形成了一个循环引用。
+
+
+## UserService 和 OrderService 循环引用示例
+
+考虑一个简单的电商应用，其中 `UserService` 负责处理用户相关的操作，`OrderService` 负责处理订单相关的操作。这两个服务在逻辑上可能需要互相调用。
+
+```typescript
+// user-service.ts
+import { OrderService } from './order-service';
+
+export class UserService {
+  constructor(private orderService: OrderService) {}
+
+  // ... UserService 的其他方法
+}
+
+// order-service.ts
+import { UserService } from './user-service';
+
+export class OrderService {
+  constructor(private userService: UserService) {}
+
+  // ... OrderService 的其他方法
+}
+```
+
+在这个例子中，`UserService` 和 `OrderService` 都通过构造函数注入的方式依赖于对方，这直接导致了循环引用。当 TypeScript 编译器尝试编译这些文件时，会抛出一个错误，因为两个类都相互依赖，导致无法解析依赖关系。
+
+## 使用 Proxy 解决循环引用
+
+在 TypeScript 中，你可以使用 ES6 的 `Proxy` 对象来动态地处理对象，包括解决循环引用问题。虽然 `Proxy` 本身不直接解决循环引用的问题，但你可以用它来实现一种延迟初始化或懒加载的策略，避免在初始化时直接创建循环依赖。
+
+为了解决这个问题，我们可以对 `UserService` 和 `OrderService` 的构造函数进行重构，使其接受工厂函数而不是直接实例，这样我们就可以延迟创建实例，直到真正需要的时候。
+
+```typescript
+// user-service.ts
+import { IOrderService } from './IOrderService';
+
+export class UserService {
+  private orderService: IOrderService;
+
+  constructor(getOrderService: () => IOrderService) {
+    this.orderService = getOrderService();
+  }
+
+  // ... UserService 的其他方法
+}
+
+// order-service.ts
+import { IUserService } from './IUserService';
+
+export class OrderService {
+  private userService: IUserService;
+
+  constructor(getUserService: () => IUserService) {
+    this.userService = getUserService();
+  }
+
+  // ... OrderService 的其他方法
+}
+```
+
+接下来，我们定义接口，并使用 `Proxy` 来实现延迟初始化的逻辑。
+
+```typescript
+// IUserService.ts
+export interface IUserService {
+  // ... UserService 的方法声明
+}
+
+// IOrderService.ts
+export interface IOrderService {
+  // ... OrderService 的方法声明
+}
+
+// index.ts 或者你的应用启动文件
+import { UserService } from './user-service';
+import { OrderService } from './order-service';
+import { IUserService } from './IUserService';
+import { IOrderService } from './IOrderService';
+
+const getUserService = () => {
+  return new UserService(getOrderService);
+};
+
+const getOrderService = () => {
+  return new OrderService(getUserService);
+};
+
+const userServiceProxy = new Proxy(getUserService, {
+  apply(target, thisArg, argumentsList) {
+    return Reflect.apply(target, thisArg, argumentsList);
+  },
+});
+
+const orderServiceProxy = new Proxy(getOrderService, {
+  apply(target, thisArg, argumentsList) {
+    return Reflect.apply(target, thisArg, argumentsList);
+  },
+});
+
+const userService: IUserService = userServiceProxy();
+const orderService: IOrderService = orderServiceProxy();
+
+// 现在你可以使用 userService 和 orderService，它们之间不会有循环引用的问题
+```
+
+在这个解决方案中，`getUserService` 和 `getOrderService` 是工厂函数，它们返回 `UserService` 和 `OrderService` 的实例。通过使用 `Proxy`，我们确保在第一次调用这些工厂函数时，它们会相互调用对方来创建实例，但不会立即形成循环引用，因为实际的创建操作被推迟到了第一次调用代理对象的 `apply` 陷阱时。
+
+请注意，这种方法仍然需要小心处理，确保逻辑上 `UserService` 和 `OrderService` 的使用不会造成逻辑上的死循环。

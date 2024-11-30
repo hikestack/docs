@@ -1,0 +1,88 @@
+import { Callout } from 'nextra/components';
+
+# 哈希模块
+
+```HashModule```是一个为 NestJS 应用集成哈希算法的模块。
+
+## 安装
+
+```sh npm2yarn
+npm install @hikestack/hash
+```
+
+<Callout type="info">
+安装对应适配器的依赖
+</Callout>
+
+```sh npm2yarn
+npm install bcryptjs
+```
+
+## 使用
+
+导入并注册 ```HashModule```
+
+```ts showLineNumbers filename="app.module.ts" {20-25}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { HashModule, BcryptAdapter } from "@hikestack/hash";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		HashModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				adapter: new BcryptAdapter()
+			}),
+		})
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {7}
+import { Injectable } from "@nestjs/common";
+import { HashService } from "@hikestack/hash";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly hashService: HashService
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {6-14}
+import { Injectable, Inject } from "@nestjs/common";
+import { HashService } from "@hikestack/hash";
+
+@Injectable()
+export class AppService {
+    @Inject(HashService)
+	private readonly hashService: HashService
+
+    async test() {
+        const salt = await this.hashService.genSalt(10);
+        const hash = await this.hashService.hash("123456", salt);
+        const result = await this.hashService.compare("123456", hash);
+        console.log(result); // true
+    }
+}
+```

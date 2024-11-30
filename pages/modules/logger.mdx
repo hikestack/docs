@@ -1,0 +1,54 @@
+import { Callout } from 'nextra/components';
+
+# 日志模块
+
+```LoggerModule``` 是一个为 NestJS 应用提供灵活日志记录功能的模块。它封装了常用的日志记录库（如 [```winston```](https://github.com/winstonjs/winston)），并提供了易于使用的接口，使开发者能够在整个 NestJS 应用中统一和高效地记录日志。
+
+## 安装
+
+```sh npm2yarn
+npm install @hikestack/logger
+```
+
+<Callout type="info">
+安装对应适配器的依赖
+</Callout>
+
+```sh npm2yarn
+npm install winston
+```
+
+## 使用
+
+导入并注册 ```LoggerModule```
+
+```ts showLineNumbers filename="app.module.ts" {20-25}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { LoggerModule, WinstonAdapter } from "@hikestack/logger";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		LoggerModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				adapter: new WinstonAdapter(configService.get("logger")),
+			}),
+		})
+	]
+})
+export class AppModule {}
+```

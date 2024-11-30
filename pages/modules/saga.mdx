@@ -1,0 +1,247 @@
+import { Callout } from 'nextra/components';
+
+# Saga模块
+
+```Saga``` 模块是一个为 NestJS 应用提供Saga模式的分布式事务而构建的。
+
+## 安装
+
+```sh npm2yarn
+npm install @hikestack/saga
+```
+
+<Callout type="info">
+Saga模块的默认实现是基于[```BullMQ```](https://github.com/taskforcesh/bullmq) 的 ```FlowProducer```，因此需要安装相关依赖。
+</Callout>
+
+## 使用
+
+创建事务和补偿
+
+```ts showLineNumbers filename="create-tenant.saga.ts" {4-10,14-20}
+import { LoggerService } from "@hikestack/logger";
+import { Injectable, Scope } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { BullSaga } from "@hikestack/saga";
+import { CreateDefaultRoleTask } from "./tasks/create-default-role.task";
+import { UpdateOwnerTask } from "./tasks/update-owner.task";
+
+// 需要设置 scope 为 TRANSIENT
+@Injectable({ scope: Scope.TRANSIENT }) 
+export class CreateTenantSaga extends BullSaga {
+	constructor(
+		configService: ConfigService,
+		loggerService: LoggerService,
+		createDefaultRoleTask: CreateDefaultRoleTask,
+		updateOwnerTask: UpdateOwnerTask,
+	) {
+        // 任务是并行执行的
+		super([createDefaultRoleTask, updateOwnerTask], {
+			connection: configService.get("bull.connection"),
+		});
+
+		this.on("execute", () => {
+			loggerService.log(`${CreateTenantSaga.name} execute`);
+		})
+			.on("active", (job) => {
+				loggerService.log(
+					`${CreateTenantSaga.name} active: ${job.name} - ${job.id}`,
+				);
+			})
+			.on("completed", (job) => {
+				loggerService.log(
+					`${CreateTenantSaga.name} completed: ${job.name} - ${job.id}`,
+				);
+			})
+			.on("failed", (job) => {
+				loggerService.log(
+					`${CreateTenantSaga.name} failed: ${job.name} - ${job.id}`,
+				);
+			})
+			.on("finished", () => {
+				loggerService.log(`${CreateTenantSaga.name} finished`);
+			})
+			.on("error", (err) => {
+				loggerService.error(`${CreateTenantSaga.name} error:`, err);
+			})
+			.on("rollback", () => {
+				loggerService.log(`${CreateTenantSaga.name} rollback`);
+			})
+			.on("rollback:active", (job) => {
+				loggerService.log(
+					`${CreateTenantSaga.name} rollback active: ${job.name} - ${job.id}`,
+				);
+			})
+			.on("rollback:completed", (job) => {
+				loggerService.log(
+					`${CreateTenantSaga.name} rollback completed: ${job.name} - ${job.id}`,
+				);
+			})
+			.on("rollback:failed", (job) => {
+				loggerService.log(
+					`${CreateTenantSaga.name} rollback failed: ${job.name} - ${job.id}`,
+				);
+			})
+			.on("rollback:finished", () => {
+				loggerService.log(`${CreateTenantSaga.name} rollback finished`);
+			})
+			.on("rollback:error", (err) => {
+				loggerService.error(`${CreateTenantSaga.name} rollback error:`, err);
+			})
+			.on("close", () => {
+				loggerService.log(`${CreateTenantSaga.name} close`);
+			});
+	}
+}
+```
+
+```ts showLineNumbers filename="create-default-role.task.ts"
+import { TenantDto } from "@/common";
+import { BaseComponent } from "@/core/components";
+import { ITask } from "@hikestack/saga";
+import { Injectable } from "@nestjs/common";
+
+@Injectable()
+export class CreateDefaultRoleTask
+	extends BaseComponent
+	implements ITask<TenantDto>
+{
+	public readonly name: string = CreateDefaultRoleTask.name;
+	public readonly children?: ITask<TenantDto>[];
+
+	async commit(target: TenantDto) {
+		await this.prisma.role.create({
+			data: {
+				name: "管理员",
+				tenantId: target.id,
+				isDefault: true,
+			},
+		});
+	}
+
+	async rollback(target: TenantDto) {
+		await this.prisma.role.deleteMany({
+			where: {
+				tenantId: target.id,
+			},
+		});
+	}
+}
+```
+
+```ts showLineNumbers filename="update-owner.task.ts"
+import { TenantDto } from "@/common";
+import { BaseComponent } from "@/core/components";
+import { ITask } from "@hikestack/saga";
+import { Injectable } from "@nestjs/common";
+
+@Injectable()
+export class UpdateOwnerTask extends BaseComponent implements ITask<TenantDto> {
+	public readonly name: string = UpdateOwnerTask.name;
+	public readonly children?: ITask<TenantDto>[];
+
+	async commit(target: TenantDto) {
+		await this.prisma.user.update({
+			where: {
+				id: target.ownerId,
+			},
+			data: {
+				tenantId: target.id,
+			},
+		});
+	}
+
+	async rollback(target: TenantDto) {
+		await this.prisma.user.update({
+			where: {
+				id: target.ownerId,
+			},
+			data: {
+				tenantId: null,
+			},
+		});
+	}
+}
+```
+
+执行事务，如果有任何任务失败则会触发回滚补偿。
+
+```ts tenant.service.ts {26}
+import {
+	CreateTenantDto,
+	TenantDto,
+} from "@/common";
+import { BaseService } from "@/core/components";
+import { Injectable } from "@nestjs/common";
+import { CreateTenantSaga } from "../sagas/create-tenant/create-tenant.saga";
+
+@Injectable()
+export class TenantService extends BaseService {
+	constructor(private readonly createTenantSaga: CreateTenantSaga) {
+		super();
+	}
+
+	async create(dto: CreateTenantDto) {
+		const userId = await this.getCurrentUserId();
+		return await this.prisma.$transaction(async (tx) => {
+			
+			const tenant = await tx.tenant.create({
+				data: {
+					...dto,
+					ownerId: userId,
+				},
+			});
+
+			await this.createTenantSaga.execute(tenant);
+
+			return tenant;
+		});
+	}
+}
+
+```
+
+:::tip 提示
+如果任务之间有从属关系，可以设置任务串行执行
+:::
+
+```ts showLineNumbers filename="create-default-role.task.ts" {15-19}
+import { TenantDto } from "@/common";
+import { BaseComponent } from "@/core/components";
+import { ITask } from "@hikestack/saga";
+import { Injectable } from "@nestjs/common";
+import { UpdateOwnerTask } from "./update-owner.task";
+
+@Injectable()
+export class CreateDefaultRoleTask
+	extends BaseComponent
+	implements ITask<TenantDto>
+{
+	public readonly name: string = CreateDefaultRoleTask.name;
+	public readonly children?: ITask<TenantDto>[];
+
+    constructor(
+		updateOwnerTask: UpdateOwnerTask,
+	) {
+        this.children = [updateOwnerTask]
+    }
+
+	async commit(target: TenantDto) {
+		await this.prisma.role.create({
+			data: {
+				name: "管理员",
+				tenantId: target.id,
+				isDefault: true,
+			},
+		});
+	}
+
+	async rollback(target: TenantDto) {
+		await this.prisma.role.deleteMany({
+			where: {
+				tenantId: target.id,
+			},
+		});
+	}
+}
+```

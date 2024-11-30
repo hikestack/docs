@@ -1,0 +1,75 @@
+import { Callout } from 'nextra/components';
+
+# 文件模块
+
+```FileModule``` 是一个为 NestJS 应用处理文件读写功能的模块。
+
+## 安装
+
+```sh npm2yarn
+npm install @hikestack/file
+```
+
+## 使用
+
+导入并注册 ```FileModule```
+
+```ts showLineNumbers filename="app.module.ts" {20-27}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { FileModule, LocalFileSystemProvider } from "@hikestack/file";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		FileModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				providers: {
+					local: new LocalFileSystemProvider(configService.get("file.local")),
+				},
+			}),
+		}),
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {7}
+import { Injectable } from "@nestjs/common";
+import { FileService } from "@hikestack/file";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly fileService: FileService,
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {6,7}
+import { Injectable, Inject } from "@nestjs/common";
+import { FileService } from "@hikestack/file";
+
+@Injectable()
+export class AppService {
+    @Inject(FileService)
+	private readonly fileService: FileService;
+}
+```

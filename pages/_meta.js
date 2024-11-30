@@ -3,12 +3,16 @@ export default {
     "title": "主页",
     "type": "page"
   },
-  "docs": {
-    "title": "文档",
+  "modules": {
+    "title": "NestJS模块",
     "type": "page"
   },
-  // "apps": {
-  //   "title": "项目",
-  //   "type": "page"
-  // }
+  "docs": {
+    "title": "NestJS VS SpringBoot",
+    "type": "page"
+  },
+  "blogs": {
+    "title": "博客",
+    "type": "page"
+  }
 }

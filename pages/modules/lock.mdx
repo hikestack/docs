@@ -1,0 +1,106 @@
+import { Callout } from 'nextra/components';
+
+# 分布式锁模块
+
+```LockModule```是一个为 NestJS 应用提供分布式锁功能的模块。在分布式系统中，多个服务实例或节点可能会同时访问和修改共享资源。
+如果没有适当的同步机制，就可能导致数据不一致、脏读、脏写等并发问题。分布式锁就是为了解决这些问题而引入的一种同步机制。 
+
+## 安装
+
+```sh npm2yarn
+npm install @hikestack/lock
+```
+<Callout type="info">
+安装对应适配器的依赖
+</Callout>
+
+```sh npm2yarn
+npm install redlock
+```
+
+## 使用
+
+导入并注册 ```RedisModule``` 和 ```LockModule```
+
+```ts showLineNumbers filename="app.module.ts" {25-36}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { RedisModule, RedisService } from "@hikestack/redis";
+import { LockModule, RedlockAdapter } from "@hikestack/lock";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		RedisModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => configService.get("redis"),
+		}),
+        LockModule.registerAsync({
+			inject: [ConfigService, RedisService],
+			useFactory: (
+				configService: ConfigService,
+				redisService: RedisService,
+			) => ({
+				adapter: new RedlockAdapter({
+					clients: [redisService.fork()],
+					...configService.get("lock"),
+				}),
+			}),
+		}),
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {7}
+import { Injectable } from "@nestjs/common";
+import { LockService } from "@hikestack/lock";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly lockService: LockService
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {6-21}
+import { Injectable, Inject } from "@nestjs/common";
+import { LockService } from "@hikestack/lock";
+
+@Injectable()
+export class AppService {
+    @Inject(LockService)
+	private readonly lockService: LockService;
+
+    async test() {
+        try {
+            await this.lockService.using(
+                ['需要锁定的资源'],
+                10000,
+                async () => {
+                    // 执行业务逻辑
+                }
+            );
+        } catch(err) {
+            // 获取锁失败
+        }
+    }
+}
+```

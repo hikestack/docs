@@ -1,0 +1,124 @@
+import { Callout } from 'nextra/components';
+
+# JVM模块
+
+```JvmModule``` 是一个专为 NestJS 框架设计的模块，它使得在 NestJS 应用中集成和使用 Java 变得简单和高效。
+
+## 安装
+
+```sh npm2yarn
+npm install @hikestack/jvm
+```
+
+<Callout type="info">
+安装对应的依赖
+</Callout>
+
+```sh npm2yarn
+npm install node-java
+```
+
+```sh npm2yarn
+npm install node-java-maven
+```
+
+## 安装 Java 和 Maven
+
+推荐使用[`SDKMAN`](https://sdkman.io/)安装Java和Maven环境，如果你本地已有相关环境可以忽略此步。
+
+```bash
+$ curl -s "https://get.sdkman.io" | bash
+
+$ sdk install java 23-open
+$ sdk install maven 3.9.9
+
+$ java -version
+$ mvn -version
+```
+
+## 使用
+
+导入并注册 ```JvmModule```
+
+```ts showLineNumbers filename="app.module.ts" {20-23}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { JvmModule } from "@hikestack/jvm";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		JvmModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => configService.get("jvm"),
+		})
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {7}
+import { Injectable } from "@nestjs/common";
+import { JvmService } from "@hikestack/jvm";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly jvmService: JvmService,
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {6,7}
+import { Injectable, Inject } from "@nestjs/common";
+import { JvmService } from "@hikestack/jvm";
+
+@Injectable()
+export class AppService {
+    @Inject(JvmService)
+	private readonly jvmService: JvmService;
+}
+```
+
+```ts
+import { Injectable, Inject, OnModuleInit } from "@nestjs/common";
+import { JvmService } from "@hikestack/jvm";
+
+export class AppService implements OnModuleInit {
+	constructor(
+		private readonly jvmService: JvmService,
+	) {}
+
+	async onModuleInit() {
+		await this.jvmService.init();
+	}
+
+	async test() {
+		this.jvmService.JVM.import("java.util.ArrayList");
+
+		const list = await this.jvmService.JVM.newInstanceAsync(
+			"java.util.ArrayList",
+		);
+		list.add("hello");
+
+		console.log(list.get(0)); // "hello"
+		console.log(list.size()); // 1
+	}
+}
+```

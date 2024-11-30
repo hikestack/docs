@@ -1,0 +1,79 @@
+import { Callout } from 'nextra/components';
+
+# Redis模块
+
+```RedisModule``` 是一个专为 NestJS 框架设计的模块，它使得在 NestJS 应用中集成和使用 Redis 变得简单和高效。这个模块在底层默认使用 [```ioredis```](https://github.com/redis/ioredis) 库来实现与 Redis 服务器的通信。
+
+## 安装
+
+```sh npm2yarn
+npm install @hikestack/redis
+```
+
+<Callout type="info">
+安装对应适配器的依赖
+</Callout>
+
+```sh npm2yarn
+npm install ioredis
+```
+
+## 使用
+
+导入并注册 ```RedisModule```
+
+```ts showLineNumbers filename="app.module.ts" {20-23}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { RedisModule } from "@hikestack/redis";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		RedisModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => configService.get("redis"),
+		})
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {7}
+import { Injectable } from "@nestjs/common";
+import { RedisService } from "@hikestack/redis";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly redisService: RedisService,
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {6,7}
+import { Injectable, Inject } from "@nestjs/common";
+import { RedisService } from "@hikestack/redis";
+
+@Injectable()
+export class AppService {
+    @Inject(RedisService)
+	private readonly redisService: RedisService;
+}
+```

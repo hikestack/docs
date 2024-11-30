@@ -1,0 +1,106 @@
+import { Callout } from 'nextra/components';
+
+# Prisma模块
+
+```PrismaModule```是一个为 NestJS 应用集成Prisma ORM的模块。[```Prisma ORM```](https://github.com/prisma/prisma)凭借其直观的数据模型、自动迁移、类型安全和自动完成功能，在使用数据库时将开发人员的体验提升到了一个新的水平。
+
+## 安装
+ 
+```sh npm2yarn
+npm install @hikestack/prisma
+```
+<Callout type="info">
+请确保您的[```Prisma ORM```](https://docs.nestjs.com/recipes/prisma)已正确设置
+</Callout>
+
+## 使用
+
+导入并注册 ```PrismaModule```
+
+```ts showLineNumbers filename="app.module.ts" {20-23}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { PrismaModule } from "@hikestack/prisma";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		PrismaModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => configService.get("db.prisma"),
+		})
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {7}
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "@hikestack/prisma";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly prismaService: PrismaService,
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {7,8}
+import { Injectable, Inject } from "@nestjs/common";
+import { PrismaService } from "@hikestack/prisma";
+import { DB } from "@/types";
+
+@Injectable()
+export class AppService {
+    @Inject(PrismaService)
+	private readonly prismaService: PrismaService;
+}
+```
+
+```ts showLineNumbers filename="tenant.service.ts"
+import {
+	CreateTenantDto,
+	TenantDto,
+} from "@/common";
+import { halt } from "@/core";
+import { BaseService } from "@/core/components";
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "@hikestack/prisma";
+
+@Injectable()
+export class TenantService extends BaseService {
+
+    constructor(
+		private readonly prismaService: PrismaService,
+	) {}
+
+    async create(dto: CreateTenantDto) {
+		const userId = await this.getCurrentUserId();
+		const tenant = await this.prismaService.tenant.create({
+            data: {
+                ...dto,
+                ownerId: userId,
+            },
+		});
+
+        return tenant;
+	}
+}
+```

@@ -1,0 +1,66 @@
+# keyof 和 infer
+
+在 TypeScript 的类型系统中，`keyof` 和 `infer` 是两个非常强大的工具，它们允许开发者以更加灵活和精确的方式操作类型。这两个特性在构建泛型库、处理复杂数据结构或实现类型安全的 API 时尤为重要。本文将通过解析一个 OAuth 服务的实现代码，来深入探讨 `keyof` 和 `infer` 的用法及其在实际开发中的应用。
+
+## `keyof`：获取对象键的类型
+
+`keyof` 类型操作符用于获取一个对象类型中所有键的联合类型。这在处理动态属性名或需要根据对象键来构建类型时非常有用。
+
+例如，在 OAuth 服务的上下文中，我们可能有一个配置对象 `OAuthModuleOptions`，它包含一个 `providers` 属性，该属性是一个映射到不同 OAuth 提供者配置的对象。使用 `keyof`，我们可以轻松地获取这些提供者键的类型：
+
+```typescript
+type IAuthorizationOptions = {...};
+type IAccessTokenOptions = {...};
+type IUserInfoOptions = {...};
+
+interface OAuthProvider<
+	IAuthorizationOptions,
+	IAccessTokenOptions,
+	IUserInfoOptions,
+> {
+	getAuthorizationUrl(options?: IAuthorizationOptions): Promise<string>;
+	getAccessToken(options: IAccessTokenOptions): Promise<string>;
+	getUserInfo<TUserInfo = any>(options: IUserInfoOptions): Promise<TUserInfo>;
+}
+
+interface OAuthModuleOptions {
+  providers: {
+    [key: string]: OAuthProvider<IAuthorizationOptions, IAccessTokenOptions, IUserInfoOptions>;
+  };
+}
+
+type ProviderKey = keyof OAuthModuleOptions["providers"];
+```
+
+在这个例子中，`ProviderKey` 将是一个字符串字面量类型的联合，包含了 `OAuthModuleOptions["providers"]` 对象中所有键的类型。
+
+## `infer`：在条件类型中推断类型
+
+`infer` 关键字用于在条件类型内部推断出一个类型。它通常与 `extends` 子句一起使用，允许开发者基于某个类型的结构来构造一个新的类型。
+
+在 OAuth 服务的实现中，`infer` 被用来推断 `getAuthorizationUrl`、`getAccessToken` 和 `getUserInfo` 方法的参数类型。这些方法的参数类型取决于具体的 OAuth 提供者实现。通过使用 `infer`，我们可以确保在调用这些方法时，提供的参数类型与提供者期望的类型相匹配。
+
+例如，在 `getAuthorizationUrl` 方法中：
+
+```typescript
+async getAuthorizationUrl<
+  T extends OAuthProvider<IAuthorizationOptions, IAccessTokenOptions, IUserInfoOptions>,
+>(
+  provider: ProviderKey,
+  options?: T["getAuthorizationUrl"] extends (arg: infer P) => any ? P : never,
+): Promise<string> {
+  // 方法实现
+}
+```
+
+在这个例子中，`T` 是一个泛型参数，它扩展了 `OAuthProvider` 接口。我们使用 `T["getAuthorizationUrl"] extends (arg: infer P) => any ? P : never` 来推断 `getAuthorizationUrl` 方法的参数类型。如果 `T` 的 `getAuthorizationUrl` 方法接受一个参数，那么 `P` 将是这个参数的类型；否则，参数类型将是 `never`（表示不存在）。
+
+## 结合使用 `keyof` 和 `infer`
+
+在 OAuth 服务的实现中，`keyof` 和 `infer` 被巧妙地结合在一起，以提供类型安全的 API。通过 `keyof`，我们可以确保传入的提供者键是有效的；通过 `infer`，我们可以确保传入的参数类型与提供者期望的类型相匹配。
+
+这种类型安全的保证对于开发大型应用程序或库来说至关重要，因为它可以减少运行时错误，提高代码的可维护性和可读性。
+
+## 总结
+
+`keyof` 和 `infer` 是 TypeScript 类型系统中的两个强大工具，它们允许开发者以更加灵活和精确的方式操作类型。通过理解这两个特性的工作原理，开发者可以构建出更加健壮、类型安全的代码库。在 OAuth 服务的实现中，我们看到了这两个特性如何协同工作，以提供类型安全的 API，并确保在调用这些方法时提供的参数类型与提供者期望的类型相匹配。

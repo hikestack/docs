@@ -1,0 +1,134 @@
+# AI 工程化
+
+**挑战**
+
+大型语言模型（LLM）的崛起无疑为自然语言处理（NLP）领域带来了巨大的变革。这些模型凭借海量的数据和复杂的神经网络结构，展现出了强大的语言理解和生成能力。然而，尽管大模型在文本生成、问答等任务中表现出色，但其返回的自然语言形式却难以被应用程序直接使用，这成为了 AI 工程化过程中的一大挑战。
+
+**模式工程**
+
+C#、TypeScript 之父 Anders Hejlsberg 开源的 TypeChat 项目，通过使用模式工程代替传统的提示工程给出了一个解决方案。TypeChat 的核心原理在于其模式工程的方法。它允许开发者自由定义类型，以准确表达自然语言应用程序所支持的意图。一旦定义了这些类型，TypeChat 会为 LLM 制定提示，并验证 LLM 的响应是否符合模式。当验证失败时，TypeChat 会进行额外的语言模型交互，以修复不符合要求的输出。这种机制确保了 TypeChat 能够生成符合应用程序需求的响应结果，从而实现了 AI 与应用程序的协同工作。
+
+通俗的来讲就是在每次向大模型提问的时候要求它按照指定的类型返回 JSON 数据，如果返回的数据不符合你给出的类型定义，把错误信息告诉它让他修复之后重新返回，最后将验证通过后的 JSON 数据回给应用程序。
+
+这是一个使用 TypeChat 编写的情感分类器，它将用户输入分类为消极、中性或积极:
+
+```typescript filename="sentimentSchema.ts"
+export interface SentimentResponse {
+  sentiment: '消极的' | '中性的' | '积极的';
+}
+```
+
+```typescript
+import assert from 'assert';
+import dotenv from 'dotenv';
+import findConfig from 'find-config';
+import fs from 'fs';
+import path from 'path';
+import { createJsonTranslator, createLanguageModel } from 'typechat';
+import { processRequests } from 'typechat/interactive';
+import { createTypeScriptJsonValidator } from 'typechat/ts';
+import { SentimentResponse } from './sentimentSchema';
+
+const dotEnvPath = findConfig('.env');
+assert(dotEnvPath, '.env file not found!');
+dotenv.config({ path: dotEnvPath });
+
+const model = createLanguageModel(process.env);
+// 将模式定义的源文件内容用于构建提示词
+const schema = fs.readFileSync(path.join(__dirname, 'sentimentSchema.ts'), 'utf8');
+const validator = createTypeScriptJsonValidator<SentimentResponse>(schema, 'SentimentResponse');
+const translator = createJsonTranslator(model, validator);
+
+processRequests('😀> ', process.argv[2], async request => {
+  const response = await translator.translate(request);
+  if (!response.success) {
+    console.log(response.message);
+    return;
+  }
+  console.log(`用户的情绪是 ${response.data.sentiment}`);
+});
+
+// 输入 TypeChat 真棒!
+
+// 输出 用户情绪是 积极的
+```
+
+核心代码逻辑如下:
+
+```typescript
+async function translate(request: string, promptPreamble?: string | PromptSection[]) {
+  const preamble: PromptSection[] =
+    typeof promptPreamble === 'string' ? [{ role: 'user', content: promptPreamble }] : promptPreamble ?? [];
+
+  let prompt: PromptSection[] = [...preamble, { role: 'user', content: typeChat.createRequestPrompt(request) }];
+
+  let attemptRepair = typeChat.attemptRepair;
+
+  // 进入一个无限循环，直到得到有效的响应或修复失败
+  while (true) {
+    // 使用模型完成prompt，并等待其响应
+    const response = await model.complete(prompt);
+
+    // 如果响应不成功，直接返回响应
+    if (!response.success) {
+      return response;
+    }
+
+    // 获取响应的文本内容
+    const responseText = response.data;
+
+    // 查找响应文本中JSON的开始和结束索引
+    const startIndex = responseText.indexOf('{');
+    const endIndex = responseText.lastIndexOf('}');
+
+    // 如果响应文本不是有效的JSON格式，返回错误
+    if (!(startIndex >= 0 && endIndex > startIndex)) {
+      return error(`Response is not JSON:\n${responseText}`);
+    }
+
+    // 提取JSON文本
+    const jsonText = responseText.slice(startIndex, endIndex + 1);
+
+    // 尝试将JSON文本解析为对象
+    let jsonObject;
+    try {
+      jsonObject = JSON.parse(jsonText) as object;
+    } catch (e) {
+      // 如果解析失败，返回错误
+      return error(e instanceof SyntaxError ? e.message : 'JSON parse error');
+    }
+
+    // 如果TypeChat设置了stripNulls，则去除jsonObject中的null值
+    if (typeChat.stripNulls) {
+      stripNulls(jsonObject);
+    }
+
+    // 使用validator对jsonObject进行模式验证
+    const schemaValidation = validator.validate(jsonObject);
+
+    // 如果模式验证成功，则进一步使用TypeChat进行实例验证
+    const validation = schemaValidation.success ? typeChat.validateInstance(schemaValidation.data) : schemaValidation;
+
+    // 如果验证成功，返回验证结果
+    if (validation.success) {
+      return validation;
+    }
+
+    // 如果不允许修复或修复失败，返回错误
+    if (!attemptRepair) {
+      return error(`JSON validation failed: ${validation.message}\n${jsonText}`);
+    }
+
+    // 如果允许修复，将响应文本和修复提示添加到prompt中
+    prompt.push({ role: 'assistant', content: responseText });
+    prompt.push({ role: 'user', content: typeChat.createRepairPrompt(validation.message) });
+
+    // 禁用下一次的修复尝试
+    attemptRepair = false;
+  }
+}
+```
+
+**总结**
+
+TypeChat 充当了自然语言、应用模式和 API 之间的桥梁，简化了开发过程并解决了应用程序与大型语言模型（LLM）的集成问题。它使用了一种创新的模式工程方法，取代了传统的提示工程方法。开发者可以自由定义类型，准确表达自然语言应用程序所支持的意图。

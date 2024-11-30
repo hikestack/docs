@@ -1,0 +1,181 @@
+import { Callout } from 'nextra/components';
+
+# Drizzle模块
+
+```DrizzleModule```是一个为 NestJS 集成 DrizzleORM 的模块。
+
+## 安装
+ 
+```sh npm2yarn
+npm install @hikestack/drizzle
+```
+
+<Callout type="info">
+安装对应的依赖[```DrizzleORM```](https://github.com/drizzle-team/drizzle-orm)
+</Callout>
+
+```sh npm2yarn
+npm install drizzle-orm
+```
+
+## 使用
+
+导入并注册 ```DrizzleModule```
+
+```ts showLineNumbers filename="app.module.ts" {20-24}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { DrizzleModule } from "@hikestack/drizzle";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		DrizzleModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) =>
+				configService.get("db.drizzle"),
+		}),
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {7}
+import { Injectable } from "@nestjs/common";
+import { DrizzleService } from "@hikestack/drizzle";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly drizzleService: DrizzleService<'mysql2'>,
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {7,8}
+import { Injectable, Inject } from "@nestjs/common";
+import { DrizzleService } from "@hikestack/drizzle";
+import { DB } from "@/types";
+
+@Injectable()
+export class AppService {
+    @Inject(DrizzleService)
+	private readonly drizzleService: DrizzleService<'mysql2'>,
+}
+```
+
+数据库Schema的示例
+
+```ts showLineNumbers filename="schema.ts"
+import { sql } from "drizzle-orm";
+import * as t from "drizzle-orm/mysql-core";
+import { UserStatusEnum } from "./enums";
+
+export const dateColumns = {
+	updatedAt: t.datetime("updated_at").default(sql`now()`).notNull(),
+	createdAt: t.datetime("created_at").default(sql`now()`).notNull(),
+	deletedAt: t.datetime("deleted_at"),
+};
+
+export const TenantTable = t.mysqlTable("t_tenant", {
+	id: t.int().primaryKey().autoincrement(),
+	name: t.varchar({ length: 255 }).notNull(),
+	...dateColumns,
+});
+
+export const RoleTable = t.mysqlTable(
+	"t_role",
+	{
+		id: t.int().primaryKey().autoincrement(),
+		name: t.varchar({ length: 255 }).notNull(),
+		tenantId: t.int("tenant_id").references(() => TenantTable.id),
+		...dateColumns,
+	},
+	(table) => {
+		return {
+			tenantIndex: t.index("tenant_idx").on(table.tenantId),
+		};
+	},
+);
+
+export const UserTable = t.mysqlTable(
+	"t_user",
+	{
+		id: t.int().primaryKey().autoincrement(),
+		name: t.varchar({ length: 255 }),
+		avatar: t.varchar({ length: 255 }),
+		email: t.varchar({ length: 255 }),
+		password: t.varchar({ length: 255 }),
+		status: t
+			.mysqlEnum(Object.values(UserStatusEnum) as [string])
+			.default(UserStatusEnum.UN_ACTIVATED),
+		tenantId: t.int("tenant_id").references(() => TenantTable.id),
+		...dateColumns,
+	},
+	(table) => ({
+		tenantIndex: t.index("tenant_idx").on(table.tenantId),
+	}),
+);
+
+export const UserOAuthProfileTable = t.mysqlTable(
+	"t_user_oauth_profile",
+	{
+		id: t.int().primaryKey().autoincrement(),
+		provider: t.varchar({ length: 255 }).notNull(),
+		providerId: t.varchar({ length: 255 }).notNull().unique(),
+		info: t.json(),
+		...dateColumns,
+	},
+	(table) => ({
+		providerId: t.uniqueIndex("provider_id").on(table.providerId),
+	}),
+);
+```
+
+## 使用
+
+```ts showLineNumbers filename="user.service.ts"
+import { halt } from "@/core";
+import { BaseService } from "@/core/components";
+import { Injectable } from "@nestjs/common";
+import { DrizzleService } from "@hikestack/drizzle";
+import { UserTable } from "@/models/schema";
+
+@Injectable()
+export class UserService extends BaseService {
+
+    constructor(
+		private readonly drizzleService: DrizzleService<'mysql2'>,
+	) {}
+
+	async test() {
+		await this.drizzleService.db.insert(UserTable).values({
+			name: "hike",
+		});
+
+		const users = await this.drizzleService.db
+			.select({
+				id: UserTable.id,
+				name: UserTable.name,
+			})
+			.from(UserTable);
+		console.log(users);
+	}
+}
+```

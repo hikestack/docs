@@ -1,0 +1,98 @@
+import { Callout } from 'nextra/components';
+
+# Python模块
+
+```PythonModule``` 是一个专为 NestJS 框架设计的模块，它使得在 NestJS 应用中集成和使用 Python 变得简单和高效。
+
+## 安装
+
+```sh npm2yarn
+npm install @hikestack/python
+```
+
+<Callout type="info">
+安装对应的依赖
+</Callout>
+
+```sh npm2yarn
+npm install pythonia
+```
+
+## 使用
+
+导入并注册 ```PythonModule```
+
+```ts showLineNumbers filename="app.module.ts" {20-23}
+import path from "path";
+import { Module } from "@nestjs/common";
+import { PythonModule } from "@hikestack/python";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+
+@Module({
+	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+			cache: true,
+			envFilePath: [
+				path.resolve(
+					__dirname,
+					"..",
+					`env/${process.env.NODE_ENV || "development"}.env`,
+				),
+			],
+			load: configs,
+		}),
+		PythonModule.registerAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => configService.get("python"),
+		})
+	]
+})
+export class AppModule {}
+```
+
+使用构造函数注入
+
+```ts showLineNumbers filename="app.service.ts" {7}
+import { Injectable } from "@nestjs/common";
+import { PythonService } from "@hikestack/python";
+
+@Injectable()
+export class AppService {
+	constructor(
+		private readonly pythonService: PythonService,
+	) {}
+}
+```
+
+使用属性注入
+
+```ts showLineNumbers filename="app.service.ts" {6,7}
+import { Injectable, Inject } from "@nestjs/common";
+import { PythonService } from "@hikestack/python";
+
+@Injectable()
+export class AppService {
+    @Inject(PythonService)
+	private readonly pythonService: PythonService;
+}
+```
+
+```ts
+import { Injectable, Inject, OnModuleInit } from "@nestjs/common";
+import { PythonService } from "@hikestack/python";
+
+export class AppService implements OnModuleInit {
+	constructor(
+		private readonly pythonService: PythonService,
+	) {}
+
+	async test() {
+		const math = await this.pythonService.import('math');
+        const fabs = await math.fabs(-10); // 10
+        const sqrt = await math.sqrt(16); // 4
+        const result = await this.pythonService.exec`${fabs} + ${sqrt}`;
+        console.log(result); // 14
+	}
+}
+```

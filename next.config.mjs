@@ -23,13 +23,6 @@ const nextConfig = {
 		unoptimized: true,
 	},
 	basePath: process.env.NODE_ENV === "production" ? "/docs" : "",
-	// webpack: (config) => {
-	// 	config.module.rules.push({
-	// 		test: /\.md$/,
-	// 		use: "raw-loader",
-	// 	});
-	// 	return config;
-	// },
 };
 
 const withNextra = nextra({

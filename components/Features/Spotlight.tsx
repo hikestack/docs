@@ -51,6 +51,7 @@ export default function Spotlight() {
                     </Selectable>
                 ))}
             </nav>
+            {/* @ts-ignore */}
             <Selection
                 from={steps.map((step, i) => (
                     // @ts-ignore

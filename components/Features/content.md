@@ -1,6 +1,6 @@
 ## !!steps
 
-导入模块
+1.导入模块
 
 ```ts !
 import path from "path";
@@ -37,7 +37,7 @@ export class AppModule {}
 
 ## !!steps
 
-配置模块
+2.配置模块
 
 ```ts !
 import { registerAs } from '@nestjs/config';
@@ -70,7 +70,7 @@ export default registerAs<winston.LoggerOptions>('logger', () => ({
 
 ## !!steps
 
-使用模块
+3.使用模块
 
 ```ts !
 // !focus

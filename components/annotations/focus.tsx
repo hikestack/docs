@@ -50,7 +50,6 @@ function useScrollToFocus(ref: React.RefObject<HTMLPreElement>) {
             if (bottom > containerRect.height || top < 0) {
                 ref.current.scrollTo({
                     top: ref.current.scrollTop + top - 10,
-                    // @ts-ignore
                     behavior: firstRender.current ? "instant" : "smooth",
                 })
             }

@@ -3,7 +3,7 @@
 import { Block, CodeBlock, parseRoot } from "codehike/blocks"
 import { HighlightedCode, Pre, highlight } from "codehike/code"
 import { Selectable, Selection, SelectionProvider } from "codehike/utils/selection"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { z } from "zod"
 import { focus } from "../annotations/focus"
 import { tokenTransitions } from "../annotations/token-transitions"
@@ -14,7 +14,6 @@ const Schema = Block.extend({
 });
 
 function Code({ codeblock }: { codeblock: HighlightedCode }) {
-
     const [code, setCode] = useState<HighlightedCode>();
 
     useEffect(() => {
@@ -22,7 +21,7 @@ function Code({ codeblock }: { codeblock: HighlightedCode }) {
             const highlighted = await highlight(codeblock, "one-dark-pro");
             setCode(highlighted);
         })();
-    }, [codeblock]);
+    }, [codeblock?.code]);
 
     return (
         <div className="relative">
@@ -37,37 +36,21 @@ function Code({ codeblock }: { codeblock: HighlightedCode }) {
 }
 
 export default function Spotlight() {
-    const { steps } = useMemo(() => {
-        return parseRoot(Content, Schema);
-    }, [Content]);
-    return steps ? (
+    const { steps } = parseRoot(Content, Schema);
+    return (
         <SelectionProvider className="flex flex-col w-[850px] min-h-[850px]">
             <nav className="flex justify-center gap-4" aria-label="Tabs" role="tablist" aria-orientation="horizontal">
-                <Selectable
-                    index={0}
-                    selectOn={["click"]}
-                    className="hs-tab-active:bg-gray-100 hs-tab-active:hover:border-transparent flex flex-col text-start hover:bg-gray-100 focus:outline-none focus:bg-gray-100 md:py-2 md:px-3 rounded dark:hs-tab-active:bg-neutral-800 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800 active cursor-pointer"
-                >
-                    <span className="hs-tab-active:text-blue-600 block font-semibold text-sm text-gray-800 dark:hs-tab-active:text-blue-500 dark:text-neutral-200">1. 导入模块</span>
-                </Selectable>
-
-                <Selectable
-                    index={1}
-                    selectOn={["click"]}
-                    className="hs-tab-active:bg-gray-100 hs-tab-active:hover:border-transparent flex flex-col text-start hover:bg-gray-100 focus:outline-none focus:bg-gray-100 md:py-2 md:px-3 rounded dark:hs-tab-active:bg-neutral-800 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800 active cursor-pointer"
-                >
-                    <span className="hs-tab-active:text-blue-600 block font-semibold text-sm text-gray-800 dark:hs-tab-active:text-blue-500 dark:text-neutral-200">2. 配置模块</span>
-                </Selectable>
-
-                <Selectable
-                    index={2}
-                    selectOn={["click"]}
-                    className="hs-tab-active:bg-gray-100 hs-tab-active:hover:border-transparent flex flex-col text-start hover:bg-gray-100 focus:outline-none focus:bg-gray-100 md:py-2 md:px-3 rounded dark:hs-tab-active:bg-neutral-800 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800 active cursor-pointer"
-                >
-                    <span className="hs-tab-active:text-blue-600 block font-semibold text-sm text-gray-800 dark:hs-tab-active:text-blue-500 dark:text-neutral-200">3. 使用模块</span>
-                </Selectable>
+                {steps.map((step, i) => (
+                    <Selectable
+                        key={i.toString()}
+                        index={i}
+                        selectOn={["click"]}
+                        className="hs-tab-active:bg-gray-100 hs-tab-active:hover:border-transparent flex flex-col text-start hover:bg-gray-100 focus:outline-none focus:bg-gray-100 md:py-2 md:px-3 rounded dark:hs-tab-active:bg-neutral-800 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800 active cursor-pointer"
+                    >
+                        <span className="hs-tab-active:text-blue-600 block font-semibold text-sm text-gray-800 dark:hs-tab-active:text-blue-500 dark:text-neutral-200">{step.children}</span>
+                    </Selectable>
+                ))}
             </nav>
-            {/* @ts-ignore */}
             <Selection
                 from={steps.map((step, i) => (
                     // @ts-ignore
@@ -75,5 +58,5 @@ export default function Spotlight() {
                 ))}
             />
         </SelectionProvider>
-    ) : <></>;
+    );
 };

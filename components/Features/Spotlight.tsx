@@ -45,9 +45,9 @@ export default function Spotlight() {
                         key={i.toString()}
                         index={i}
                         selectOn={["click"]}
-                        className="hs-tab-active:bg-gray-100 hs-tab-active:hover:border-transparent flex flex-col text-start hover:bg-gray-100 focus:outline-none focus:bg-gray-100 md:py-2 md:px-3 rounded dark:hs-tab-active:bg-neutral-800 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800 active cursor-pointer"
+                        className="hs-tab-active:bg-gray-100 hs-tab-active:hover:border-transparent flex flex-col text-start hover:bg-gray-100 focus:outline-none focus:bg-gray-100 md:py-2 md:px-3 rounded dark:hs-tab-active:bg-neutral-800 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800 active cursor-pointer hover:text-gray-900 hover:dark:text-neutral-200"
                     >
-                        <span className="hs-tab-active:text-blue-600 block font-semibold text-sm text-gray-800 dark:hs-tab-active:text-blue-500 dark:text-neutral-200">{step.children}</span>
+                        <span className="block font-semibold text-sm  dark:text-neutral-200">{step.children}</span>
                     </Selectable>
                 ))}
             </nav>

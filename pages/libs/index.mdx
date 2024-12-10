@@ -1,0 +1,61 @@
+import { Callout } from 'nextra/components';
+
+# 阿里云
+
+```clusterize```是一个为 NestJS 实现多进程集群化部署的库。
+
+## 安装
+ 
+```sh npm2yarn
+pnpm add @hikestack/clusterize
+```
+
+## 使用
+
+```ts
+import clusterize from '@hikestack/clusterize';
+import { ConfigService } from '@nestjs/config';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function main() {
+  const app = await NestFactory.create(AppModule);
+  const config = app.get(ConfigService);
+
+  await app.listen(config.get('port'));
+}
+
+process.env.NODE_ENV === 'development' ? main() : clusterize(main);
+```
+
+使用pm2部署
+
+```js filename="ecosystem.config.js"
+module.exports = {
+	apps: [
+		{
+			name: "node-api",
+			script: "./dist/main.js",
+			exec_mode: "cluster_mode",  // 集群模式
+			instances: 4,   // 使用4个进程
+			env: {
+				NODE_ENV: "production",
+			},
+		},
+	],
+};
+```
+
+```bash
+➜ pm2 start
+[PM2][WARN] Applications node-api not running, starting...
+[PM2] App [node-api] launched (4 instances)
+┌────┬─────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name        │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼─────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ node-api    │ default     │ 0.1.0   │ cluster │ 71137    │ 0s     │ 0    │ online    │ 0%       │ 71.7mb   │ root     │ disabled │
+│ 1  │ node-api    │ default     │ 0.1.0   │ cluster │ 71138    │ 0s     │ 0    │ online    │ 0%       │ 66.4mb   │ root     │ disabled │
+│ 2  │ node-api    │ default     │ 0.1.0   │ cluster │ 71142    │ 0s     │ 0    │ online    │ 0%       │ 56.8mb   │ root     │ disabled │
+│ 3  │ node-api    │ default     │ 0.1.0   │ cluster │ 71147    │ 0s     │ 0    │ online    │ 0%       │ 47.3mb   │ root     │ disabled │
+└────┴─────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+```

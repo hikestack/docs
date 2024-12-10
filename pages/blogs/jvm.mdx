@@ -31,7 +31,7 @@ javac com/example/MyClass.java
 ```shell
 mkdir my-node-app
 cd my-node-app
-npm install node-gyp node-addon-api
+pnpm add node-gyp node-addon-api
 node-gyp init
 ```
 
@@ -214,7 +214,7 @@ addon.callJava('com/example/MyClass', 'getMessage', 'Node.js'); // Hello Node.js
 首先需要安装`node-java`包：
 
 ```shell
-npm install java
+pnpm add java
 ```
 
 修改代码使用`node-java`

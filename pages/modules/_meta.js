@@ -41,7 +41,4 @@ export default {
 	python: {
 		title: "Python模块",
 	},
-	service: {
-		title: "云服务",
-	},
 };

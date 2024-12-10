@@ -1,30 +1,11 @@
-import { Callout } from 'nextra/components';
+## !!steps
 
-# 日志模块
+导入模块
 
-```LoggerModule``` 是一个为 NestJS 应用提供灵活日志记录功能的模块。它封装了常用的日志记录库（如 [```winston```](https://github.com/winstonjs/winston)），并提供了易于使用的接口，使开发者能够在整个 NestJS 应用中统一和高效地记录日志。
-
-## 安装
-
-```sh npm2yarn
-pnpm add @hikestack/logger
-```
-
-<Callout type="info">
-安装对应适配器的依赖
-</Callout>
-
-```sh npm2yarn
-pnpm add winston
-```
-
-## 使用
-
-导入并注册 ```LoggerModule```
-
-```ts showLineNumbers filename="app.module.ts" {20-25}
+```ts !
 import path from "path";
 import { Module } from "@nestjs/common";
+// !focus
 import { LoggerModule, WinstonAdapter } from "@hikestack/logger";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
@@ -42,6 +23,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 			],
 			load: configs,
 		}),
+    // !focus(1:6)
 		LoggerModule.registerAsync({
 			inject: [ConfigService],
 			useFactory: (configService: ConfigService) => ({
@@ -53,17 +35,11 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 export class AppModule {}
 ```
 
-## 配置
+## !!steps
 
-安装终端颜色包
+配置模块
 
-```sh npm2yarn
-pnpm add kleur
-```
-
-默认配置如下：
-
-```ts filename="logger.config.ts"
+```ts !
 import { registerAs } from '@nestjs/config';
 import kleur from 'kleur';
 import winston, { format } from 'winston';
@@ -90,4 +66,25 @@ export default registerAs<winston.LoggerOptions>('logger', () => ({
     ),
     transports: [new winston.transports.Console()],
 }));
+```
+
+## !!steps
+
+使用模块
+
+```ts !
+// !focus
+import { LoggerService } from '@hikestack/logger';
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  // !focus
+  constructor(private readonly loggerService: LoggerService) { }
+
+  sayHello() {
+    // !focus
+    this.loggerService.log('Hello World!');
+  }
+}
 ```

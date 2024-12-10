@@ -1,5 +1,6 @@
 import React from 'react'
 import { useConfig, DocsThemeConfig } from 'nextra-theme-docs'
+import { Code } from './components/Code';
 
 const config: DocsThemeConfig = {
   logo: <b>HikeStack</b>,
@@ -19,6 +20,10 @@ const config: DocsThemeConfig = {
   },
   footer: {
     content: `HikeStack @ ${new Date().getFullYear()}`,
+  },
+  components: {
+    // @ts-ignore
+    Code,
   },
 }
 

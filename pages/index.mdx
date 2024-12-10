@@ -1,3 +1,45 @@
-# HikeStack
+import Features from '../components/Features';
+import { SparklesIcon } from '../components/icons/SparklesIcon';
+import { RocketIcon } from '../components/icons/RocketIcon';
+import { GithubIcon } from '../components/icons/GithubIcon';
 
-包含一组简单、高效的 TypeScript 工具集、NestJS常用模块、技术文章等。
+<div className="relative overflow-hidden before:absolute before:top-0 before:start-1/2 before:bg-[url('https://preline.co/assets/svg/examples/polygon-bg-element.svg')] dark:before:bg-[url('https://preline.co/assets/svg/examples-dark/polygon-bg-element.svg')] before:bg-no-repeat before:bg-top before:bg-cover before:size-full before:-z-[1] before:transform before:-translate-x-1/2">
+  <div className="max-w-[85rem] mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="flex justify-center">
+      <a href="https://github.com/hikestack/hike" className="inline-flex items-center px-3 py-1 bg-white border border-gray-200 text-sm text-gray-800 rounded-full transition hover:border-gray-300 focus:outline-none focus:border-gray-300 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-200 dark:hover:border-neutral-600 dark:focus:border-neutral-600">
+        <span className='p-1 [&_svg]:w-4 [&_svg]:h-4 [&_svg]:text-violet-500'>
+          <SparklesIcon />
+        </span>
+        项目的驱动力来自于你的Star
+      </a>
+    </div>
+
+    <div className="mt-5 max-w-2xl text-center mx-auto">
+      <h1 className="block font-bold text-gray-800 text-4xl md:text-5xl lg:text-6xl">
+        Hike
+        <span className="bg-clip-text bg-gradient-to-tl from-blue-600 to-violet-600 text-transparent">Stack</span>
+      </h1>
+    </div>
+
+    <div className="mt-5 max-w-3xl text-center mx-auto">
+      <p className="text-lg text-gray-600">HikeStack是一组可扩展的NestJS模块、TypeScript工具以及相关技术文章的集合</p>
+    </div>
+
+    <div className="mt-8 gap-4 flex justify-center">
+      <a href="/libs" className="inline-flex justify-center items-center text-center bg-gradient-to-tl from-blue-600 to-violet-600 hover:from-violet-600 hover:to-blue-600 border border-transparent text-white text-sm font-medium rounded-md focus:outline-none focus:from-violet-600 focus:to-blue-600 py-1 px-2 pr-3" href="/libs">
+        <span className='w-10 h-10'>
+          <RocketIcon />
+        </span>
+        立即使用
+      </a>
+      <a href="https://github.com/hikestack/hike" target="_blank" type="button" className="relative group py-1 px-2 pr-3 inline-flex items-center text-sm font-mono rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none">
+        <span className='w-10 h-10'>
+          <GithubIcon />
+        </span>
+        查看源码
+      </a>
+    </div>
+  </div>
+</div>
+
+<Features />

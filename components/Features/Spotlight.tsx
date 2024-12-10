@@ -3,7 +3,7 @@
 import { Block, CodeBlock, parseRoot } from "codehike/blocks"
 import { HighlightedCode, Pre, highlight } from "codehike/code"
 import { Selectable, Selection, SelectionProvider } from "codehike/utils/selection"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { z } from "zod"
 import { focus } from "../annotations/focus"
 import { tokenTransitions } from "../annotations/token-transitions"
@@ -37,8 +37,10 @@ function Code({ codeblock }: { codeblock: HighlightedCode }) {
 }
 
 export default function Spotlight() {
-    const { steps } = parseRoot(Content, Schema)
-    return (
+    const { steps } = useMemo(() => {
+        return parseRoot(Content, Schema);
+    }, [Content]);
+    return steps ? (
         <SelectionProvider className="flex flex-col w-[850px] min-h-[850px]">
             <nav className="flex justify-center gap-4" aria-label="Tabs" role="tablist" aria-orientation="horizontal">
                 <Selectable
@@ -65,11 +67,13 @@ export default function Spotlight() {
                     <span className="hs-tab-active:text-blue-600 block font-semibold text-sm text-gray-800 dark:hs-tab-active:text-blue-500 dark:text-neutral-200">3. 使用模块</span>
                 </Selectable>
             </nav>
+            {/* @ts-ignore */}
             <Selection
-                from={steps.map((step) => (
-                    <Code codeblock={step.code} />
+                from={steps.map((step, i) => (
+                    // @ts-ignore
+                    <Code key={i.toString()} codeblock={step.code} />
                 ))}
             />
         </SelectionProvider>
-    );
+    ) : <></>;
 };

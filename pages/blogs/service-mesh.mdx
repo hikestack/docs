@@ -1,0 +1,343 @@
+## 什么是服务网格架构（Service Mesh）
+
+服务网格架构通过在服务的通信路径中插入一个轻量级的网络代理（通常被称为Sidecar）来实现对服务间通信的管理。这个代理与每个微服务实例一起部署，但独立于应用程序代码，从而实现了通信逻辑与业务逻辑的解耦。服务网格架构通常由两大核心组件构成：数据平面和控制平面。数据平面负责处理所有进出服务实例的网络流量，而控制平面则负责管理和配置代理，以及实施策略和收集指标。
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/32da18047f224c4a96722a26f5e7b17e~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734427713&x-orig-sign=d1D1xRTrslnl%2FTqtufQukLcogZk%3D)
+
+## 服务网格架构的功能
+
+Kuma是一个易于使用、高度可扩展的开源服务网格控制平台，旨在管理、保护和观测Service Mesh。其核心特性广泛且强大，涵盖了路由、服务发现、流量治理等多个方面，以下是对Kuma核心特性的详细归纳：
+
+1.  **路由**：
+
+    *   Kuma提供细粒度的流量控制功能，支持动态负载均衡，以及蓝/绿、金丝雀、版本和回滚部署等多种路由策略。
+    *   通过RESTful API或自定义资源定义（CRDs），用户可以灵活地设置路由规则，实现流量的精确调度。
+
+2.  **服务发现**：
+
+    *   Kuma内置了服务发现机制，能够自动感知和注册服务实例，实现服务的动态发现和连接。
+    *   支持跨Kubernetes集群和命名空间的服务发现，为混合云和多云环境下的服务治理提供了便利。
+
+3.  **流量治理**：
+
+    *   Kuma提供了丰富的流量治理功能，包括流量分割、流量日志、流量追踪和流量指标等。
+    *   通过配置ACL规则，用户可以精细地控制服务间的访问权限，确保流量在安全的范围内流动。
+    *   流量日志和追踪功能可以帮助用户实时监控和分析服务间的交互行为，及时发现并解决问题。
+    *   用户可以根据业务需求，设置流量速率限制，以防止服务过载和崩溃。
+
+4.  **熔断**：
+
+    *   Kuma支持熔断机制，能够在服务出现故障时自动停止对该服务的请求，避免进一步的资源浪费和用户体验的恶化。
+    *   熔断策略可以根据服务的健康状况和流量情况动态调整，确保系统的稳定性和可靠性。
+
+5.  **降级**：
+
+    *   Kuma通过流量控制和路由策略，可以间接实现服务的降级。
+    *   当某个服务出现问题时，用户可以将流量重定向到其他可用的服务实例或备用服务上，以实现服务的降级处理。
+
+6.  **其他核心特性**：
+
+    *   **安全性**：Kuma内置了强大的身份验证和加密通讯机制，采用mTLS（相互TLS）加密数据传输，确保服务间交互的安全性。
+    *   **多租户支持**：可在一个集群与同一个控制平面上部署多套服务网格，满足不同租户的需求。
+    *   **跨平台兼容性**：Kuma不仅支持Kubernetes环境，还拥抱传统的虚拟机（VM）部署，为混合云和多云策略提供了一致的管理方案。
+    *   **易用性**：Kuma提供了开箱即用的浏览器GUI和高度定制化的文档，使得用户能够轻松上手并快速配置服务网格。
+    *   **高度可扩展性**：Kuma的设计具有高度的可扩展性，支持通过插件和扩展模块来增强其功能。
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/3981e402d9214d3ba771ae2cb1f290e1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734427713&x-orig-sign=oh0vz8mtaI%2BSXLAHwU9zHvWJTjA%3D)
+
+## 安装Kuma
+
+**前置条件**
+
+*   安装 Kubernetes
+*   安装 Helm
+
+安装 kumactl
+
+```bash
+curl -L https://kuma.io/installer.sh | VERSION=2.9.1 sh -
+export PATH=$(pwd)/kuma-2.9.1/bin:$PATH
+```
+
+安装 kuma charts
+
+    helm repo add kuma https://kumahq.github.io/charts
+    helm repo update
+    helm install --create-namespace --namespace kuma-system kuma kuma/kuma
+
+查看部署情况(可能需要一段时间)
+
+    $ kumactl version # kumactl 默认连接地址是 http://127.0.0.1:5681/ 需要更换为你的地址
+    Client: Kuma 2.9.1
+    Server: Kuma 2.9.1
+
+访问控制平面 [http://Kuma服务IP:5681/gui](http://Kuma服务IP/gui)
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/d1d79494d605410f8b24a4309ea7a285~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734427713&x-orig-sign=6AzeJodV9TfOjDTD4fSwtex1Of4%3D)
+
+## 部署服务
+
+创建一个Node.js服务
+
+```js
+const express = require("express");
+
+const app = express();
+
+app.get("/", (req, res) => {
+	res.send(`Pod IP is ${process.env.POD_IP}`);
+});
+
+app.get('/data', (req, res) => {
+	res.json({
+		ip: process.env.POD_IP
+	});
+});
+
+app.listen(3000, () => {
+	console.log("Server started on port 3000");
+});
+```
+
+使用Dockerfile构建镜像
+```
+# 使用官方 Node.js 20 的基础镜像
+FROM node:20-slim
+
+# 设置工作目录
+WORKDIR /app
+
+# 将 package.json 和 pnpm-lock.yaml 复制到工作目录
+COPY package.json pnpm-lock.yaml ./
+
+# 使用 corepack 安装 pnpm
+RUN corepack enable pnpm
+
+# 安装项目依赖
+RUN pnpm install
+
+# 复制项目文件到工作目录
+COPY . .
+
+# 暴露容器的 3000 端口
+EXPOSE 3000
+
+# 使用 pnpm start 作为容器启动命令
+CMD ["pnpm", "start"]
+
+docker build -t node-api .
+```
+
+创建`api.yml`部署文件
+
+```yml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kuma-demo
+  labels:
+    kuma.io/sidecar-injection: enabled   # 指示 Kuma 服务网格在这个命名空间中自动注入 Sidecar 代理
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-api
+  namespace: kuma-demo
+spec:
+  selector:
+    matchLabels:
+      app: node-api
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: node-api
+    spec:
+      containers:
+        - name: node-api
+          image: "node-api"
+          imagePullPolicy: IfNotPresent   # 如果不存在本地镜像, 则从镜像仓库拉取          
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: POD_IP    # 设置 Pod IP 环境变量
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-api
+  namespace: kuma-demo
+  labels:
+    app: node-api
+spec:
+  selector:
+    app: node-api
+  ports:
+  - protocol: TCP
+    appProtocol: http
+    port: 3000
+    nodePort: 30000
+  type: NodePort
+```
+
+部署服务
+
+    kubectl apply -f ./api.yml
+
+    # 要停止部署可以执行
+    kubectl delete -f ./api.yml
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/441ca00b49be4a66845d448317e6e46c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734427713&x-orig-sign=kyGScjZbDP6%2F705aIGD8JOZyS8Q%3D)
+
+在Kuma仪表盘中看到成功在默认网格中部署了1个服务、3个数据平面（因为有3个Pod副本）
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/7433c694d4e34ddf9330f7a6754bcfd1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734427713&x-orig-sign=AsV3pk4CTsAFgUyA6mSlk1bgg0M%3D)
+
+可以看到Pod中的容器有2个，其中一个是 node-api，另外一个是Kuma Sidecar
+
+访问本机的 [http://127.0.0.1:30000](http://127.0.0.1:30000) 端口可以看到提供服务的Pod IP
+
+## 使用Kuma网关
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/13439659246b4ca09b42d8527eab06ac~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734427713&x-orig-sign=%2FzFLcbG5MaQgtHE3FD%2F5NnlzW54%3D)
+
+### 创建网关
+
+创建`gateway.yml`部署文件
+
+```yml
+# 定义一个 Kuma MeshGatewayInstance 资源，用于指定边缘网关的实例。
+apiVersion: kuma.io/v1alpha1
+kind: MeshGatewayInstance
+metadata:
+  # 指定网关实例的名称和命名空间。
+  name: edge-gateway
+  namespace: kuma-demo
+spec:
+  # 指定网关实例的副本数量。
+  replicas: 1
+  # 指定服务类型为 LoadBalancer，以便网关可以从外部访问。
+  serviceType: LoadBalancer
+
+---
+# 定义一个 Kuma MeshGateway 资源，用于配置网关的行为。
+apiVersion: kuma.io/v1alpha1
+kind: MeshGateway
+mesh: default
+metadata:
+  # 指定网关的名称。
+  name: my-gateway
+spec:
+  # 定义网关选择器，用于匹配特定的服务。
+  selectors:
+    - match:
+        # 匹配具有特定服务标签的服务。
+        kuma.io/service: edge-gateway_kuma-demo_svc
+  # 配置网关的监听器。
+  conf:
+    listeners:
+      - port: 8080
+        protocol: HTTP
+        # 为监听器设置标签，这些标签可以用于流量路由和监控。
+        tags:
+          port: http-8080
+```
+
+执行部署文件
+
+    kubectl apply -f ./gateway.yml
+
+访问网关地址可以看到输出
+
+    This is a Kuma MeshGateway. No routes match this MeshGateway!
+
+### 创建路由
+
+创建`route.yml`部署文件
+
+```yml
+# 定义一个 Kuma MeshHTTPRoute 资源，用于配置 HTTP 路由。
+apiVersion: kuma.io/v1alpha1
+kind: MeshHTTPRoute
+metadata:
+  # 指定路由的名称和命名空间。
+  name: edge-gateway-route
+  namespace: kuma-system
+  labels:
+    # 指定该资源属于默认的网格。
+    kuma.io/mesh: default
+spec:
+  # 指定路由的目标是哪一个 MeshGateway。
+  targetRef:
+    kind: MeshGateway
+    name: my-gateway
+  to:
+    # 定义路由的目标是网格中的服务。
+    - targetRef:
+        kind: Mesh
+    rules:
+      # 定义具体的路由规则。
+      - matches:
+          # 匹配路径前缀为 "/" 的请求。
+        - path:
+            type: PathPrefix
+            value: "/"
+        default:
+          # 定义默认的后端服务。
+          backendRefs:
+            - kind: MeshService
+              # 指定后端服务的名称、命名空间和端口。
+              name: node-api
+              namespace: kuma-demo
+              port: 3000
+
+---
+# 定义一个 Kuma MeshTrafficPermission 资源，用于配置流量权限。
+apiVersion: kuma.io/v1alpha1
+kind: MeshTrafficPermission
+metadata:
+  # 指定流量权限的命名空间和名称。
+  namespace: kuma-demo 
+  name: node-api
+spec:
+  # 指定流量权限的目标服务。
+  targetRef:
+    kind: MeshSubset
+    tags:
+      app: node-api
+  # 定义允许访问目标服务的源服务。
+  from:
+    - targetRef:
+        kind: MeshSubset
+        tags: 
+          kuma.io/service: edge-gateway_kuma-demo_svc 
+      default:
+        # 允许源服务访问目标服务。
+        action: Allow
+```
+
+执行部署文件
+
+```
+kubectl apply -f ./route.yml
+```
+
+查看服务部署情况
+
+```
+➜  k8s git:(main) ✗ kubectl get pods -n kuma-demo
+NAME                            READY   STATUS    RESTARTS   AGE
+node-api-6f59df579b-mj4mf       2/2     Running   0          7m42s
+node-api-6f59df579b-frnc4       2/2     Running   0          7m42s
+node-api-6f59df579b-x4nfd       2/2     Running   0          7m42s
+edge-gateway-55c44b9bfd-m4bj7   1/1     Running   0          6m51s
+
+➜  k8s git:(main) ✗ kubectl get svc -n kuma-demo
+NAME           TYPE           CLUSTER-IP        EXTERNAL-IP    PORT(S)          AGE
+node-api       NodePort       192.168.194.234   <none>         3000:30000/TCP   8m15s
+edge-gateway   LoadBalancer   192.168.194.233   198.19.249.2   8080:30410/TCP   7m24s
+```

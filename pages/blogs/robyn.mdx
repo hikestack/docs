@@ -1,0 +1,264 @@
+## 介绍
+
+Python，作为一种简洁、强大且广泛应用的编程语言，已经成为数据科学、人工智能、网络服务器开发等多个领域的主流语言。本教程旨在为熟悉Node.js的开发者提供一个现代Python的快速入门指南。
+
+## 环境搭建
+
+`uv`是一个使用Rust编写的Python项目和包管理工具
+
+安装`uv`
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+```
+
+使用`uv`安装Python
+
+```bash
+➜ uv python list
+cpython-3.13.1+freethreaded-macos-aarch64-none    <download available>
+cpython-3.13.1-macos-aarch64-none                 <download available>
+cpython-3.9.6-macos-aarch64-none                  <download available>
+...
+```
+
+选择一个版本并安装
+
+```bash
+uv python install cpython-3.9.6-macos-aarch64-none
+```
+
+## 创建项目
+
+初始化一个项目
+
+```bash
+uv init demo && cd demo
+```
+
+同步项目依赖
+
+```bash
+uv sync
+```
+
+`uv`会根据 `pyproject.toml` 和 `.python-version` 定义的项目依赖和Python版本依赖，
+自动生成`venv`虚拟环境
+
+激活虚拟环境
+
+```bash
+➜ uv venv
+Using CPython 3.9.6 interpreter at: /Library/Developer/CommandLineTools/usr/bin/python3
+Creating virtual environment at: .venv
+Activate with: source .venv/bin/activate
+```
+
+使用当前项目的环境运行代码
+
+```bash
+uv run hello.py
+Hello from demo!
+```
+
+## 安装依赖
+
+`Robyn`是一个基于`Rust`和`uvloop`构建的高性能Web框架，`uvloop`是一个基于`libuv`实现Python异步运行时
+
+使用`uv`安装`Robyn`
+
+```bash
+uv add robyn
+```
+
+安装完成后可以看到项目的`pyproject.toml`文件中自动增加了对应的依赖项目版本和锁定版本的`uv.lock`文件
+
+```toml
+[project]
+name = "demo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.9.6"
+dependencies = [
+    "robyn>=0.64.2",
+]
+```
+
+要卸载某个依赖项可以执行
+
+```bash
+uv remove [依赖项的名称]
+```
+
+## Web开发
+
+在项目中创建`src`目录，并在`src`目录中创建`main.py`入口文件
+
+```python
+from robyn import Robyn
+
+app = Robyn(__file__)
+
+@app.get("/")
+async def h(request):
+    return "Hello, world!"
+
+app.start(port=8080)
+```
+
+### 启动项目
+
+```bash
+➜ uv run ./src/main.py --open-browser
+
+INFO:robyn.logger:SERVER IS RUNNING IN VERBOSE/DEBUG MODE. Set --log-level to WARN to run in production mode.
+INFO:robyn.logger:Robyn version: 0.37.0
+INFO:robyn.logger:Starting server at 127.0.0.1:8080
+INFO:robyn.logger:Press Ctrl + C to stop
+
+INFO:actix_server.builder:starting 1 workers
+INFO:actix_server.server:Actix runtime found; starting in Actix runtime
+INFO:actix_server.server:starting service: "actix-web-service-127.0.0.1:8080", workers: 1, listening on: 127.0.0.1:8080
+```
+
+可以看到输出了 `Hello, world!`
+
+命令行参数说明:
+
+    --open-browser         启动成功后打开浏览器
+    --processes PROCESSES  进程数量[默认：1]
+    --workers WORKERS      工作者数量[默认：1]
+    --dev                  开发模式，可快速重启
+
+在入口文件旁边创建`robyn.env`文件可以通过环境变量传递参数
+
+```python
+ROBYN_PORT=8888
+ROBYN_DEV_MODE=True
+```
+
+### 中间件
+
+```python
+@app.before_request("/")
+async def hello_before_request(request):
+    print("before_request")
+    return request
+
+@app.after_request("/")
+def hello_after_request(response):    
+    print("after_request")
+    return response
+```
+
+### 依赖注入
+
+应用级依赖注入
+
+```python
+from robyn import Robyn, ALLOW_CORS
+
+app = Robyn(__file__)
+GLOBAL_DEPENDENCY = "GLOBAL DEPENDENCY"
+
+app.inject_global(GLOBAL_DEPENDENCY=GLOBAL_DEPENDENCY)
+
+@app.get("/sync/di")
+def sync_di(request, global_dependencies):
+    return global_dependencies["GLOBAL_DEPENDENCY"]
+```
+
+路由级依赖注入
+
+```python
+from robyn import Robyn, ALLOW_CORS
+
+app = Robyn(__file__)
+ROUTER_DEPENDENCY = "ROUTER DEPENDENCY"
+
+app.inject(ROUTER_DEPENDENCY=ROUTER_DEPENDENCY)
+
+@app.get("/sync/di")
+def sync_di(request, router_dependencies):
+    return router_dependencies["ROUTER_DEPENDENCY"]
+```
+
+### 异常处理
+
+可根据异常的类型进行对应的处理
+
+```python
+@app.exception
+def handle_exception(error):
+    return Response(status_code=500, description=f"error msg: {error}", headers={})
+```
+
+## 使用Rust
+
+在`src/rust`目录中创建一个Rust文件
+
+```bash
+uv run robyn --create-rust-file rust_math
+```
+
+```rust
+// rustimport:pyo3
+
+use pyo3::prelude::*;
+
+#[pyfunction]
+fn square(n: i32) -> i32 {
+    n * n
+}
+```
+
+直接运行依赖Rust包的项目
+
+```python
+from robyn import Robyn
+from rust.rust_math import square
+
+app = Robyn(__file__)
+
+@app.before_request("/")
+async def hello_before_request(request):
+    print("before_request")
+    return request
+
+@app.after_request("/")
+def hello_after_request(response):    
+    print("after_request")
+    return response
+
+@app.get("/")
+async def h(request):
+    return square(5)
+
+app.start()
+```
+
+```bash
+uv run ./src/main.py --compile-rust-path="."
+```
+
+## 性能测试
+
+`oha`是一个使用Rust编写的HTTP基准测试工具，用于模拟多个客户端同时向服务器发送请求
+
+使用`oha`测试项目
+
+```bash
+oha -z 5s -c 1000 -q 1000 --latency-correction --disable-keepalive http://127.0.0.1:8888/
+
+-   `-z` 运行时间 5s 表示持续运行5秒
+-   `-c` 并发连接数
+-   `-q` 每秒查询次数(QPS)
+-   `--latency-correction`：开启延迟校正，用于更准确地测量请求的响应时间。
+-   `--disable-keepalive`：禁用HTTP持久连接（Keep-Alive），这意味着每个请求都会在一个新的连接上发送，而不是复用现有的连接。
+```
+
+![Kapture 2024-12-10 at 14.08.48.gif](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/d14161e1aff24e5586e602c5049a71d4~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734427954&x-orig-sign=8GlR4jSth%2FpWF97%2BdqZ6UaY7A2Y%3D)
+
+源码地址: [https://github.com/elljs/uv-robyn](https://github.com/elljs/uv-robyn)

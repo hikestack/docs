@@ -1,3 +1,5 @@
+import { title } from "process";
+
 export default {
 	metadata: {
 		title: "元编程",
@@ -31,6 +33,9 @@ export default {
 	},
 	agentic: {
 		title: "动态智能体与智能体编排",
+	},
+	monorepo: {
+		title: "Monorepo",
 	},
 	springboot: {
 		title: "SpringBoot教程",

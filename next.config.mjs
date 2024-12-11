@@ -23,6 +23,9 @@ const nextConfig = {
 		unoptimized: true,
 	},
 	basePath: process.env.NODE_ENV === "production" ? "/docs" : "",
+	env: {
+		NODE_ENV: process.env.NODE_ENV,
+	},
 };
 
 const withNextra = nextra({

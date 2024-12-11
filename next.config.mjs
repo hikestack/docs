@@ -24,7 +24,7 @@ const nextConfig = {
 	},
 	basePath: process.env.NODE_ENV === "production" ? "/docs" : "",
 	env: {
-		NODE_ENV: process.env.NODE_ENV,
+		MODE: process.env.NODE_ENV,
 	},
 };
 

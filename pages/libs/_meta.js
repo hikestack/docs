@@ -1,5 +1,5 @@
 export default {
-	index: {
+	clusterize: {
 		title: "集群化",
 	},
 };

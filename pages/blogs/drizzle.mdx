@@ -1,0 +1,296 @@
+## 什么是ORM?
+
+在软件开发领域，对象关系映射（ORM）是一种编程技术，用于转换编程语言对象和数据库表之间的数据。传统 ORM框架（如：TypeORM、Entity Framework、Spring Data JPA 等）都要求应用程围绕它们的API构建业务。
+
+以TypeORM为例，需要先定义实体类
+
+```ts
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+
+@Entity()
+export class Photo {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ length: 500 })
+  name: string;
+
+  @Column('text')
+  description: string;
+
+  @Column()
+  filename: string;
+
+  @Column('int')
+  views: number;
+
+  @Column()
+  isPublished: boolean;
+}
+```
+
+然后通过存储库API进行使用
+
+```ts
+import { Injectable, Inject } from '@nestjs/common';
+import { Repository } from 'typeorm';
+import { Photo } from './photo.entity';
+
+@Injectable()
+export class PhotoService {
+  constructor(
+    @Inject('PHOTO_REPOSITORY')
+    private photoRepository: Repository<Photo>,
+  ) {}
+
+  async findAll(): Promise<Photo[]> {
+    return this.photoRepository.find();
+  }
+}
+```
+
+在遇到复杂查询时你必须切换到查询构建器API甚至完全使用原生SQL
+
+```ts
+const posts = await dataSource.getRepository(Post)
+.createQueryBuilder("post") 
+.where((qb) => { 
+    const subQuery = qb .subQuery() 
+    .select("user.name") 
+    .from(User, "user")
+    .where("user.registered = :registered") 
+    .getQuery() 
+    return "post.title IN " + subQuery 
+ }) 
+.setParameter("registered", true) .getMany()
+```
+
+这不仅丢失了类型安全还导致双重学习曲线（需要同时了解SQL和框架的API），而且生成的SQL是并不完全可控的。
+
+## Headless ORM
+
+Drizzle 是一个以类型安全方式提供`SQL-Like`和`Relational` API且支持多种运行环境和数据库的 Headless ORM。
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/2f7a1fd47b12426c8c21dfb7e6a72d3b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734606752&x-orig-sign=rUITfwB7H2xMln2R6m8YVl7yzpA%3D)
+
+从传统数据库的使用方式迁移到使用Drizzle几乎无学习成本
+
+### 安装
+
+```bash
+pnpm add drizzle-orm mysql2
+pnpm add -D drizzle-kit
+```
+
+### 定义Schema
+
+创建 `src/db/schema.ts` 文件用于定义数据库Schema
+
+```ts
+import { sql } from "drizzle-orm";
+import * as t from "drizzle-orm/mysql-core";
+
+export const dateColumns = {
+    updatedAt: t.datetime("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull().$onUpdate(() => sql`CURRENT_TIMESTAMP`),
+    createdAt: t.datetime("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+    deletedAt: t.datetime("deleted_at"),
+};
+
+export const User = t.mysqlTable("t_user", {
+    id: t.int().primaryKey().autoincrement(),
+    email: t.varchar({ length: 255 }).notNull().unique(),
+    password: t.varchar({ length: 255 }).notNull(),
+    ...dateColumns,
+});
+```
+
+### 管理数据库
+
+定义 `drizzle.config.ts` 配置文件
+
+```ts
+import dotenvx from '@dotenvx/dotenvx';
+import { defineConfig } from 'drizzle-kit';
+
+dotenvx.config({
+    path: [`./env/${process.env.NODE_ENV}.env`],
+});
+
+export default defineConfig({
+    out: './drizzle',
+    schema: './src/db/schema.ts',
+    dialect: 'mysql',
+    dbCredentials: {
+        database: process.env.DB_NAME!,
+        host: process.env.DB_HOST!,
+        port: Number.parseInt(process.env.DB_PORT!, 10),
+        user: process.env.DB_USER!,
+        password: process.env.DB_PASS!,
+    },
+});
+```
+
+执行数据库迁移命令
+
+```bash
+pnpm dlx drizzle-kit push
+```
+
+其他命令
+
+1.  `drizzle-kit generate`
+    *   功能：基于你的 Drizzle 模式，让你生成 SQL 迁移文件，无论是在声明时还是在后续的变更中。
+
+2.  `drizzle-kit migrate`
+    *   功能：将生成的 SQL 迁移文件应用到你的数据库中。
+
+3.  `drizzle-kit pull`
+    *   功能：拉取现有数据库的模式，将其转换为 Drizzle 模式，并保存到你的代码库中。
+
+4.  `drizzle-kit push`
+    *   功能：将你的 Drizzle 模式推送到数据库中，无论是在声明时还是在后续的模式变更中。
+
+5.  `drizzle-kit studio`
+    *   功能：连接到你的数据库并启动 Drizzle Studio GUI界面，你可以使用它方便地浏览数据库。
+
+6.  `drizzle-kit check`
+    *   功能：遍历所有生成的迁移，并检查任何可能的竞态冲突。
+
+7.  `drizzle-kit up`
+    *   功能：用于升级之前生成的迁移的快照。
+
+这些命令是 Drizzle ORM 提供的 CLI 工具集，用于帮助开发者在开发过程中更高效地管理数据库迁移、模式同步和其他数据库相关的任务。
+
+### 连接数据源
+
+```ts
+import * as schema from '@/db/schema';
+import mysql from "mysql2/promise";
+
+const client = mysql.createPool({
+    host: process.env.DB_HOST,
+    port: Number.parseInt(process.env.DB_PORT, 10),
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
+});
+
+const db = drizzle({
+    client,
+    schema,
+    logging: true
+});
+```
+
+### 获取表信息
+
+```ts
+import { User } from "@/db/schema";
+import { getTableConfig } from "drizzle-orm/mysql-core";
+
+const tableConfig = getTableConfig(User);
+```
+
+### 获取列信息
+
+```ts
+import { User } from "@/db/schema";
+import { getTableColumns } from "drizzle-orm";
+
+const tableColumns = getTableColumns(User);
+```
+
+### Raw SQL API
+
+使用SQL 模板，可以在保持类型安全和查询参数化的同时，实现所需的复杂查询
+
+```ts
+import { sql } from "drizzle-orm";
+
+const id = 1;
+await db.execute(sql`select ${User.id}, ${User.email} from ${User} where ${User.id} = ${id}`);
+```
+
+### Relational API
+
+```ts
+import { eq } from "drizzle-orm";
+
+await this.db.query.User.findFirst({ where: eq(User.id, 1) });
+```
+
+### SQL-Like API
+
+```ts
+await this.db.select({
+    id: User.id
+}).from(User).where(eq(User.id, 1));
+```
+
+### 过滤器和条件运算符
+
+```ts
+import { eq, ne, gt, gte, ... } from "drizzle-orm";
+```
+
+### 事务管理
+
+```ts
+await db.transaction(async (tx) => { 
+    await tx.update(Account).set({ balance: sql`${Account.balance} - 100.00` }).where(eq(User.name, 'Dan')); 
+    await tx.update(Account).set({ balance: sql`${Account.balance} + 100.00` }).where(eq(User.name, 'Andrew'));
+});
+```
+
+### 批量操作
+
+```ts
+const batchResponse: BatchResponse = await db.batch([ 
+    db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }), 
+    db.update(usersTable).set({ name: 'Dan' }).where(eq(usersTable.id, 1)), db.query.usersTable.findMany({}), 
+    db.select().from(usersTable).where(eq(usersTable.id, 1)), 
+    db.select({ id: usersTable.id, invitedBy: usersTable.invitedBy }).from(usersTable),
+]);
+```
+
+### 动态构建
+
+```ts
+import { MySqlSelectBase } from "drizzle-orm/mysql-core";
+
+function withPagination<T extends MySqlSelectBase>(
+	qb: T,
+	page: number = 1,
+	pageSize: number = 10,
+) {
+	return qb.limit(pageSize).offset((page - 1) * pageSize);
+}
+
+const dynamicQuery = query.$dynamic();
+withPagination(dynamicQuery, 1);
+```
+
+### 自定义类型
+
+```ts
+import { customType } from 'drizzle-orm/pg-core';
+
+const customTimestamp = customType<
+    {
+        data: Date;
+        driverData: string;
+        config: { withTimezone: boolean; precision?: number };
+    }
+>({
+    dataType(config) {
+        const precision = typeof config.precision !== 'undefined'
+            ? ` (${config.precision})`
+            : '';
+        return `timestamp${precision}${config.withTimezone ? ' with time zone' : ''
+            }`;
+    },
+    fromDriver(value: string): Date {
+        return new Date(value);
+    },
+});
+```

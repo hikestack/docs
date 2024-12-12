@@ -46,4 +46,7 @@ export default {
 	robyn: {
 		title: "Robyn教程",
 	},
+	drizzle: {
+		title: "Drizzle ORM",
+	},
 };

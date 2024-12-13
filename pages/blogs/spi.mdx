@@ -1,0 +1,263 @@
+## 什么是SPI？
+`SPI`（Service Provider Interface）是一种允许服务提供者将自己插入到应用程序而无需对应用程序的代码进行修改的技术。这种机制在`Java`框架和库的开发中广泛使用，为开发者提供了灵活性和扩展性。`SPI`的核心思想是将接口的实现与接口本身分离，从而实现模块化和解耦。
+
+## 为什么要用SPI？
+使用`SPI`的主要原因包括：
+1.  **解耦**：SPI允许接口与其实现解耦，使得应用程序可以在不修改代码的情况下使用不同的服务实现。
+2.  **扩展性**：应用程序可以通过添加新的服务提供者来扩展功能，而无需更改现有代码。
+3.  **灵活性**：运行时可以动态选择服务提供者，根据不同的环境或条件选择不同的实现。
+4.  **维护性**：服务提供者可以独立于应用程序进行更新和维护。
+
+## SPI的应用场景
+`SPI`的应用场景包括以下几个方面：
+1.  **数据库连接**：JDBC使用SPI来加载不同的数据库驱动。
+2.  **日志框架**：日志框架允许用户在运行时选择不同的日志实现。
+3.  **框架扩展**：许多框架（如Spring和Dubbo）使用SPI来加载框架扩展。
+4.  **文件格式处理**：应用程序可能需要处理多种文件格式，SPI可以用来动态加载不同格式的处理程序。
+5.  **第三方服务**：对于同一类型的第三方服务，SPI可以动态添加该类服务的不同供应商的SDK。
+
+## Java中的SPI
+创建一个Java项目，目录结构如下：
+```
+➜ tree .
+.
+├── HELP.md
+├── mvnw
+├── mvnw.cmd
+├── pom.xml
+└── src
+    └── main
+        ├── java
+        │   └── com
+        │       └── example
+        │           └── demo
+        │               ├── Application.java
+        │               ├── Service.java
+        │               └── impl
+        │                   ├── ServiceImplA.java
+        │                   └── ServiceImplB.java
+        └── resources
+            ├── META-INF
+            │   └── services
+            │       └── com.example.demo.Service
+            └── application.properties
+```
+
+Service.java
+```java
+package com.example.demo;
+
+public interface Service {
+    void doSomething();
+}
+```
+
+ServiceImplA.java
+```java
+package com.example.demo.impl;
+
+import com.example.demo.Service;
+
+public class ServiceImplA implements Service {
+    @Override
+    public void doSomething() {
+        System.out.println("Doing something in A");
+    }
+}
+```
+
+ServiceImplB.java
+```java
+package com.example.demo.impl;
+
+import com.example.demo.Service;
+
+public class ServiceImplB implements Service {
+    @Override
+    public void doSomething() {
+        System.out.println("Doing something in B");
+    }
+}
+```
+
+com.example.demo.Service 文件
+```
+com.example.demo.impl.ServiceImplA
+com.example.demo.impl.ServiceImplB
+```
+
+Application.java
+```java
+package com.example.demo;
+
+import java.util.ServiceLoader;
+
+public class Application {
+
+	public static void main(String[] args) {
+		ServiceLoader<Service> services = ServiceLoader.load(Service.class);
+		for (Service service : services) {
+			service.doSomething();
+		}
+	}
+
+}
+```
+
+执行程序可以看到 `ServiceLoader` 成功加载了两个`Service`接口的实现并调用了它们的方法
+```
+➜ mvn exec:java
+[INFO] Scanning for projects...
+[INFO]
+[INFO] --------------------------< com.example:demo >--------------------------
+[INFO] Building demo 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO]
+[INFO] --- exec:3.0.0:java (default-cli) @ demo ---
+Doing something in A
+Doing something in B
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  0.286 s
+[INFO] Finished at: 2024-12-13T19:42:31+08:00
+[INFO] ------------------------------------------------------------------------
+```
+
+## TypeScript中实现SPI
+创建一个TS项目，目录结构如下：
+
+```
+➜ tree .
+.
+├── node_modules
+├── package.json
+├── src
+│   ├── main.ts
+│   ├── service.ts
+│   └── services
+│       ├── service-a.ts
+│       └── service-b.ts
+├── tsconfig.build.json
+└── tsconfig.json
+```
+
+service.ts
+```ts
+export interface IService {
+    doSomething(): void;
+}
+```
+
+service-a.ts
+```ts
+import { IService } from "@/service";
+
+export default class ServiceA implements IService {
+    doSomething() {
+        console.log('Doing something in A');
+    }
+}
+```
+
+service-b.ts
+```java
+import { IService } from "@/service";
+
+export default class ServiceB implements IService {
+    doSomething() {
+        console.log('Doing something in B');
+    }
+}
+```
+
+main.ts
+```java
+import fg from 'fast-glob';
+import * as fs from 'fs/promises';
+import * as ts from 'typescript';
+import { createContext, runInNewContext } from 'vm';
+import { IService } from './service';
+
+class ServiceLoader {
+    private static async loadTsFiles(dir: string): Promise<string[]> {
+        return await fg(`${dir}/**/*.ts`);
+    }
+
+    // 编译TypeScript文件为JavaScript代码
+    private static async compileTsFiles(files: string[]): Promise<string[]> {
+        const compiledCodes: string[] = [];
+
+        for (const file of files) {
+            const content = await fs.readFile(file, 'utf8');
+            // 使用TypeScript编译器API进行编译
+            const result = ts.transpileModule(content, {
+                compilerOptions: {
+                    module: ts.ModuleKind.CommonJS,
+                    target: ts.ScriptTarget.ES2015
+                }
+            });
+            compiledCodes.push(result.outputText);
+        }
+
+        return compiledCodes;
+    }
+
+    // 动态导入编译后的模块
+    private static async importCompiledModules(files: string[]): Promise<any[]> {
+        const modules: any[] = [];
+
+        for (const code of files) {
+            // 创建一个上下文
+            const module = { exports: {} };
+            const exports = module.exports;
+            const context = createContext({
+                require: (module: string) => {
+                    return {
+                        default: require(module)
+                    };
+                },
+                console,
+                exports,
+                module
+            });
+
+            // 执行代码
+            runInNewContext(code, context);
+
+            // 从context的module.exports中获取导出的模块
+            modules.push(context.module.exports);
+        }
+
+        return modules;
+    }
+
+    static async load(dir: string): Promise<any> {
+        const files = await this.loadTsFiles(dir);
+        const compiledCodes = await this.compileTsFiles(files);
+        return this.importCompiledModules(compiledCodes);
+    }
+}
+
+async function main() {
+    const modules = await ServiceLoader.load("./src/services");
+    for (const module of modules) {
+        const service: IService = new module.default();
+        service.doSomething();
+    }
+}
+
+main().catch(console.error);
+```
+
+执行程序可以看到实现了Java `ServiceLoader` 一样的功能
+```bash
+➜ tsx ./src/main.ts
+
+Doing something in A
+Doing something in B
+```
+
+## 总结
+`SPI`是一种在软件工程中广泛使用的设计模式，它使得应用程序能够更加灵活地适应变化，更容易扩展新功能，并且能够更好地与第三方服务集成。它为构建模块化、可插拔的系统提供了坚实的基础。

@@ -1,5 +1,3 @@
-import { title } from "process";
-
 export default {
 	metadata: {
 		title: "元编程",
@@ -54,5 +52,11 @@ export default {
 	},
 	oac: {
 		title: "服务编排即代码",
+	},
+	nats: {
+		title: "云原生消息系统",
+	},
+	spi: {
+		title: "TypeScript中实现SPI机制",
 	},
 };

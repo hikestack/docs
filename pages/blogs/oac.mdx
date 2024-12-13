@@ -1,0 +1,126 @@
+## 引言
+
+微服务架构因其灵活性、可扩展性和敏捷性而成为现代应用开发的主流选择，它使得团队能够独立开发、测试和部署应用的不同部分。然而，这种架构也带来了新的挑战，尤其是在服务间的协作和部署流程上。
+
+在微服务的实际运行中，尽管每个服务在概念上是独立的，但它们却需要协同工作以完成业务流程。这导致在开发过程中，我们常常需要同时启动多个相关服务，甚至全部服务。在云原生环境中，每次代码变更都意味着需要为对应服务重新构建Docker镜像，并将其重新部署，这一过程不仅重复、繁琐，也增加了开发流程的复杂性。因此，为了适应微服务架构，我们必须重新思考和优化我们的开发流程。
+
+## Tilt
+
+`Tilt`是一个专门为解决微服务开发痛点的工具包，提供服务可视化、自动编排、实时更新等功能。
+
+## 安装
+
+安装`Tilt`
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
+```
+
+验证安装情况
+
+```bash
+➜  tilt version
+v0.33.21, built 2024-11-08
+```
+
+## 使用
+
+### 创建一个Node.js服务
+
+```js
+const express = require('express');
+const app = express();
+const path = require('path');
+
+app.use(express.static('public'));
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname + '/index.html'));
+});
+
+app.listen(8000, () => {
+    console.log('Server running at http://localhost:8000/');
+});
+```
+
+### 创建Dockerfile
+
+```Dockerfile
+FROM node:20
+
+WORKDIR /app
+
+ADD . .
+
+RUN yarn install
+
+ENTRYPOINT [ "node", "/app/index.js" ]
+```
+
+### 创建K8s编排文件
+
+```yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-nodejs
+  labels:
+    app: example-nodejs
+spec:
+  selector:
+    matchLabels:
+      app: example-nodejs
+  template:
+    metadata:
+      labels:
+        app: example-nodejs
+    spec:
+      containers:
+        - name: example-nodejs
+          image: example-nodejs-image
+          ports:
+            - containerPort: 8000
+```
+
+### 创建Tiltfile
+
+```python
+# -*- mode: Python -*
+
+k8s_yaml('kubernetes.yaml')
+k8s_resource('example-nodejs', port_forwards=8000)
+docker_build('example-nodejs-image', '.')
+```
+
+启动服务
+
+```bash
+➜ tilt up --context orbstack
+Tilt started on http://localhost:10350/
+v0.33.21, built 2024-11-08
+
+(space) to open the browser
+(s) to stream logs (--stream=true)
+(t) to open legacy terminal mode (--legacy=true)
+(ctrl-c) to exit
+```
+
+`--context` 参数表示我正在使用的 Kubernetes 上下文是 orbstack
+
+访问 <http://localhost:10350/> 可以看到服务仪表盘
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/c40040ed5515488aa23af82388617ccd~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734668569&x-orig-sign=jviOTvASPSwBlDdZbzfjEx%2FBSus%3D)
+
+根据服务的配置，通过 <http://localhost:8080/> 可以访问该 Node.js服务
+
+点击某个服务可以查看其容器日志
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/cf34b5dbfd3a4b8183570571b3f0334c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734668569&x-orig-sign=KOhTW5p%2FMsDujzupOnNFa61Z15o%3D)
+
+修改代码并保存，可以看到服务镜像已经自动重新构建并部署
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/c9b6b095233c4c1d981a521112082008~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734668569&x-orig-sign=fpaNNwe1VLRi4WAa3xZ3rc9y9Rk%3D)
+
+## 总结
+
+通过使用`Tilt`工具，我们可以简化微服务开发的工作流程并让服务变得可视化，在多人协作时可以将开发环境、服务编排流程以代码的形式进行同步。

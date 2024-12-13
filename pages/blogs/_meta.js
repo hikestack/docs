@@ -49,4 +49,10 @@ export default {
 	drizzle: {
 		title: "Drizzle ORM",
 	},
+	iac: {
+		title: "基础设施即代码",
+	},
+	oac: {
+		title: "服务编排即代码",
+	},
 };

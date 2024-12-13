@@ -1,0 +1,249 @@
+## 什么是基础设施即代码？
+
+基础设施即代码（Infrastructure as Code，简称 IaC）是一种通过代码来定义和管理IT基础设施的运维方式，可管理的资源包括K8s集群、服务器、存储、网络等。IaC 的核心理念是将基础设施配置和部署过程自动化，实现版本控制和可重复的部署，降低人为错误，提高运维效率。
+
+## Terraform
+
+`Terraform` 是由 HashiCorp 公司开发的支持跨多个云平台（如 AWS、Azure、GCP、阿里云）的开源 IaC 工具。`Terraform` 使用 HCL（HashiCorp Configuration Language）这种声明性语言来定义基础设施资源。
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/902e2dbee6174bb89f0218a36c29f467~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734668510&x-orig-sign=G3p0FD4xZmDFZa%2BzzfmSr4KNjKk%3D)
+
+## 安装
+
+使用`brew`安装
+
+```bash
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+```
+
+验证安装情况
+
+```bash
+➜ terraform -v
+Terraform v1.10.2
+on darwin_arm64
+```
+
+## 使用基础设施
+
+### 使用Terraform在DigitalOcean上创建私有Docker镜像仓库
+
+创建 main.tf 文件
+
+```hcl
+// 定义 Terraform 配置的块，用于指定 Terraform 运行时所需的配置信息。
+terraform {
+  // required_providers 块声明了当前配置中所需的提供者及其版本要求。
+  required_providers {
+    // 声明一个名为 digitalocean 的提供者。
+    digitalocean = {
+      // source 指定了提供者的来源，这里是 DigitalOcean 的官方 Terraform 提供者。
+      source  = "digitalocean/digitalocean"
+      // version 指定了所需提供者的版本范围，"~> 2.0" 表示接受 2.x 系列的任何版本，但不会自动升级到 3.x。
+      version = "~> 2.0"
+    }
+  }
+}
+
+// provider 块定义了如何连接到 DigitalOcean 服务。
+provider "digitalocean" {
+  // token 属性设置了 DigitalOcean API 的访问令牌，用于认证 Terraform 与 DigitalOcean 之间的通信。
+  // 注意：在实际使用中，不应该在配置文件中硬编码敏感信息，而应该使用环境变量或 Terraform 的变量来管理。
+  token = "你的DigitalOcen API Token"
+
+// resource 块声明了一个 DigitalOcean 容器镜像仓库资源。
+resource "digitalocean_container_registry" "registry" {
+  // name 属性为容器镜像仓库指定了一个名称。
+  name                   = "my-container-registry"
+  // subscription_tier_slug 属性设置了容器镜像仓库的订阅层级，这里使用的是 "starter"，即免费层。
+  subscription_tier_slug = "starter"
+}
+```
+
+`resource` 中可使用的资源类型取决于你使用的提供商
+
+**terraform init**
+
+*   这个命令用于初始化一个新的或现有的 Terraform 工作区（workspace）。
+*   它负责下载和安装所需的提供者插件（providers）和后端插件（backends），这些插件是执行 Terraform 配置所必需的。
+*   `terraform init` 还会检查 Terraform 配置文件的语法是否正确，并确保所有必要的文件都存在。
+*   在工作区中第一次运行 Terraform 命令之前，或者当你添加新的提供者或模块时，需要执行这个命令。
+
+```bash
+➜ terraform init
+Initializing the backend...
+Initializing provider plugins...
+- Reusing previous version of digitalocean/digitalocean from the dependency lock file
+- Using previously-installed digitalocean/digitalocean v2.46.0
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+```
+
+`Terraform`创建了一个`.terraform.lock.hcl`文件用于锁定使用的提供者和资源的具体版本
+
+**terraform plan**
+
+*   这个命令用于生成一个执行计划（execution plan），展示 Terraform 将如何改变基础设施以匹配配置文件中定义的状态。
+*   `terraform plan` 会读取当前的配置和状态，然后计算出需要哪些操作来同步实际状态与期望状态。
+*   这个命令是安全的操作，它不会真正地改变基础设施，只是显示将要执行的操作。
+*   你可以使用 `terraform plan` 来预览更改，并确保 Terraform 将执行的操作是你所期望的。
+
+```bash
+➜  terraform plan
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # digitalocean_container_registry.registry will be created
+  + resource "digitalocean_container_registry" "registry" {
+      + created_at             = (known after apply)
+      + endpoint               = (known after apply)
+      + id                     = (known after apply)
+      + name                   = "my-container-registry"
+      + region                 = (known after apply)
+      + server_url             = (known after apply)
+      + storage_usage_bytes    = (known after apply)
+      + subscription_tier_slug = "starter"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+
+**terraform apply**：
+
+*   这个命令用于根据 `terraform plan` 生成的执行计划来实际地应用更改到基础设施。
+*   `terraform apply` 会执行 `terraform plan` 中列出的所有操作，比如创建、修改或删除资源。
+*   这个命令会改变实际的基础设施，因此在使用之前应该谨慎，并确保执行计划是正确的。
+*   你可以使用 `terraform apply` 命令后跟一个计划文件（由 `terraform plan` 生成）来应用计划，或者直接应用最新的配置。
+
+```hcl
+➜ terraform apply
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # digitalocean_container_registry.registry will be created
+  + resource "digitalocean_container_registry" "registry" {
+      + created_at             = (known after apply)
+      + endpoint               = (known after apply)
+      + id                     = (known after apply)
+      + name                   = "my-containe-registry"
+      + region                 = (known after apply)
+      + server_url             = (known after apply)
+      + storage_usage_bytes    = (known after apply)
+      + subscription_tier_slug = "starter"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+digitalocean_container_registry.registry: Creating...
+digitalocean_container_registry.registry: Still creating... [10s elapsed]
+digitalocean_container_registry.registry: Creation complete after 19s [id=hikestack-registry]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+```
+
+应用执行计划之后`Terraform`会创建 `terraform.tfstate` 和 `terraform.tfstate.backup` 文件，它们是`Terraform`用来跟踪和管理基础设施状态的关键文件。以下是它们各自的作用：
+
+**terraform.tfstate**
+
+*   这个文件是 Terraform 的状态文件，它包含了 Terraform 管理的所有资源的当前状态信息。
+*   每当你运行 `terraform apply` 时，Terraform 会更新这个文件，以反映实际的基础设施状态。
+*   `terraform.tfstate` 文件是二进制格式的，包含了资源的 ID、属性和其他元数据。
+*   这个文件允许 Terraform 在后续的 `plan` 和 `apply` 操作中了解当前的基础设施状态，并计算出需要执行哪些操作来达到配置文件中定义的期望状态。
+*   状态文件对于防止资源冲突和确保资源的正确更新至关重要。
+
+**terraform.tfstate.backup**
+
+*   这个文件是 `terraform.tfstate` 的备份文件，通常在执行 `terraform apply` 或 `terraform destroy` 操作时自动创建。
+*   备份文件的目的是提供一个恢复点，以防状态文件在更新过程中被损坏或产生不可预见的问题。
+*   如果 `terraform.tfstate` 文件在更新过程中出现问题，你可以使用 `terraform.tfstate.backup` 文件来恢复到之前的状态。
+*   备份文件通常在成功更新状态文件后保留，以便在需要时可以手动恢复。
+
+## 同步基础设施
+
+**terraform refresh**
+
+`terraform refresh`命令用于更新本地状态文件 (`terraform.tfstate`) 中的信息，以反映当前的基础设施的实际状态。这个命令相当于重新同步 Terraform 的本地状态与云服务提供商或其他外部系统管理的资源状态。
+
+以下是 `terraform refresh` 命令的一些主要作用：
+
+1.  **同步状态**： 当资源在 Terraform 之外被修改时（例如，直接通过云服务控制台或 API 创建、修改或删除资源），`terraform refresh` 可以用来将这些变化同步到 Terraform 的状态文件中。
+2.  **解决状态差异**： 如果 Terraform 的状态文件与实际的基础设施状态不一致，使用 `terraform refresh` 可以识别这些差异，并更新状态文件以匹配实际状态。
+3.  **准备计划**： 在运行 `terraform plan` 之前，通常需要先运行 `terraform refresh` 来确保 Terraform 拥有最新的状态信息，这样 `terraform plan` 才能准确地显示预期的变更。
+4.  **处理依赖问题**： 当资源依赖于其他资源的属性时，`terraform refresh` 确保所有依赖的资源都已更新，这有助于解决依赖问题。
+5.  **调试**： 如果 Terraform 计划或应用失败，`terraform refresh` 可以帮助识别问题，因为它可以揭示状态文件中的不一致性。
+
+## 删除基础设施
+
+**terraform destroy**
+
+使用 `terraform destroy` 命令来删除整个基础设施。
+
+```bash
+➜  terraform destroy
+digitalocean_container_registry.registry: Refreshing state... [id=hikestack-registry]
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  # digitalocean_container_registry.registry will be destroyed
+  - resource "digitalocean_container_registry" "registry" {
+      - created_at             = "2024-12-13 03:56:51 +0000 UTC" -> null
+      - endpoint               = "registry.digitalocean.com/my-containe-registry" -> null
+      - id                     = "my-containe-registry" -> null
+      - name                   = "my-containe-registry" -> null
+      - region                 = "syd1" -> null
+      - server_url             = "registry.digitalocean.com" -> null
+      - storage_usage_bytes    = 0 -> null
+      - subscription_tier_slug = "starter" -> null
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+
+Do you really want to destroy all resources?
+  Terraform will destroy all your managed infrastructure, as shown above.
+  There is no undo. Only 'yes' will be accepted to confirm.
+
+  Enter a value: yes
+
+digitalocean_container_registry.registry: Destroying... [id=my-containe-registry]
+digitalocean_container_registry.registry: Destruction complete after 2s
+
+Destroy complete! Resources: 1 destroyed.
+```
+
+这个命令会计划并执行删除所有由当前配置文件管理的资源。你也可以指定特定的资源进行删除：
+
+```bash
+terraform destroy -target=digitalocean_container_registry.registry
+```
+
+这将只删除指定的容器镜像仓库资源。
+
+请注意，删除资源是不可逆的操作，一旦执行，所有与该资源相关的数据都将丢失。因此，在删除资源之前，务必确保这是你想要的操作，并且已经做好了必要的备份。
+
+## 总结
+
+基础设施即代码（IaC）提供了一种高效、可重复且可版本控制的方式来管理基础设施，使得运维工作更加自动化和系统化。

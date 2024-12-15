@@ -1,0 +1,507 @@
+## 什么是工作流引擎？
+
+工作流引擎是一种软件系统，它通过定义、执行和监控工作流来管理业务流程中的一系列任务或步骤。
+
+<img src="https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/c21ebde880514b469b1ecaa6de4831a5~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734830303&x-orig-sign=qa6IlK0hM%2BiX8HrFYjDgCUjszp8%3D" alt="image.png"/>
+
+1.  **流程定义**：允许用户定义业务流程的步骤和规则。
+2.  **任务分配**：根据定义的规则自动分配任务给相应的人员或系统。
+3.  **流程执行**：按照定义的流程执行任务，并跟踪每个任务的状态。
+4.  **流程监控**：监控流程的执行情况，提供实时的流程状态和性能指标。
+5.  **异常处理**：在流程执行中遇到异常时，能够自动或手动进行处理。
+6.  **历史记录**：记录流程执行的历史数据，便于审计和分析。
+
+## 为什么要使用工作流引擎？
+
+考虑如下需求：
+
+**漏斗式营销策略**
+
+1.  用户首次注册时向其发送一封欢迎邮件
+2.  等待一天后，向活跃用户发送一封产品指导邮件
+3.  等待三天后，向活跃但并没有从免费计划升级到付费计划的用户发送优惠券
+
+如果不采用工作流引擎来实施上述的漏斗式营销策略，首先，要求开发人员对运营需求有充分的理解，其次，每次需求的新增和变更都可能影响其它部分的逻辑，难以让进行中的业务流程保持连贯性。再者，由于没有直观的自动化流程，追踪和分析数据就会变得困难，难以评估营销效果，也就难以进行优化。
+
+而使用工作流引擎后，面对可能随时增加的新营销策略，通过添加新的条件和动作可以轻松扩展，比如在用户达到某个阶段时自动发送定制化的邮件或通知，只需为工作流增加一个新的步骤。这样，您就能迅速应对市场变化，灵活调整营销策略，同时保持流程的自动化和效率，确保营销活动的连续性和一致性。
+
+使用工作流引擎实现上述需求的代码示例：
+
+```ts
+createFunction(
+  { id: "signup-drip-campaign" },
+  { event: "app/signup.completed" },
+  async ({ event, step }) => {
+    const { user } = event.data;
+    const { email, first_name } = user
+    const welcome = "Welcome to ACME";
+    
+    // 发送欢迎邮件
+    const { id: emailId } = await step.run("welcome-email", async () => {
+      return await sendEmail(
+        email,
+        welcome,
+        <div>
+          <h1>Welcome to ACME, {user.firstName}</h1>
+        </div>
+      );
+    });
+    
+    // 判断用户是否活跃，最多等待3天
+    const clickEvent = await step.waitForEvent("wait-for-engagement", {
+      event: "resend/email.clicked",
+      if: `async.data.email_id == ${emailId}`,
+      timeout: "3 days",
+    });
+    
+    // 如果用户活跃
+    if (clickEvent) {
+      // 等待1天后，向用户发送产品指导邮件
+      await step.sleep("delay-power-tips-email", "1 day");
+      await step.run("send-power-user-tips", async () => {
+        await sendEmail(
+          email,
+          "Supercharge your ACME experience",
+          <h1>
+            Hello {firstName}, here are tips to get the most out of ACME
+          </h1>
+        );
+      });
+
+      // 再等待1天后，向用户发送优惠券
+      await step.sleep("delay-trial-email", "1 day");
+    }
+    
+ 
+    // 检查用户是否付费
+    const dbUser = db.users.byEmail(email);
+
+    if (dbUser.plan !== "pro") {
+      // 发送优惠券
+      await step.run("trial-offer-email", async () => {
+        await sendEmail(
+          email,
+          "Free ACME Pro trial",
+          <h1>
+            Hello {firstName}, try our Pro features for 30 days for free
+          </h1>
+        );
+      });
+    }
+    
+  }
+);
+```
+
+## Inngest
+
+`Inngest`是一个事件驱动的持久化执行平台，可用于实现工作流引擎、智能体编排、后台任务处理等需求。
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/b5e065b8357846d589ed54ab9d039b97~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734830303&x-orig-sign=APpjQQ98Lk7leHX%2F9SD%2BmDQhrMM%3D)
+
+### 使用`Inngest`
+
+创建一个node.js项目，并定义工作流处理步骤
+
+```bash
+pnpm add inngest
+```
+
+创建 main.ts 文件
+
+```ts
+import express from "express";
+import { serve } from "inngest/express";
+import { inngest, functions } from "./inngest"
+
+async function main() {
+    const app = express();
+
+    app.use(express.json());
+
+    app.use("/api/inngest", serve({ client: inngest, functions }));
+
+    app.get("/api/hello", async (req, res, next) => {
+        await inngest.send({
+            name: "test/hello.world",
+            data: {
+                email: "testUser@example.com",
+            },
+        }).catch(err => next(err));
+        res.json({ message: 'Event sent!' });
+    });
+
+    app.listen(3000, () => {
+        console.log('Server running on http://localhost:3000');
+    });
+}
+
+main().catch(console.error);
+```
+
+创建 inngest.ts 文件
+
+```ts
+import { Inngest } from "inngest";
+
+export const inngest = new Inngest({ id: "my-app" });
+
+// Your new function:
+const helloWorld = inngest.createFunction(
+    { id: "hello-world" },
+    { event: "test/hello.world" },
+    async ({ event, step }) => {
+        await step.sleep("wait-a-moment", "1s");
+        return { message: `Hello ${event.data.email}!` };
+    },
+);
+
+// Add the function to the exported array:
+export const functions = [
+    helloWorld
+];
+```
+
+### 部署`Inngest`
+
+使用 docker 启动 `Inngest` 服务
+
+```bash
+docker run -p 8288:8288 inngest/inngest inngest dev -u http://host.docker.internal:3000/api/inngest
+```
+
+访问 [http://127.0.0.1:8288/](http://127.0.0.1:8288/) 查看 `Inngest` 仪表盘
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/4d8a50a9c376445aa479830ff11bad27~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734830303&x-orig-sign=N%2BxnNB7SEHqFQT4YMH1YfCuV1uA%3D)
+
+### 使用中间件
+
+```ts
+const myMiddleware = new InngestMiddleware({
+    name: "Example Middleware",
+    async init() {
+        return {
+        onFunctionRun({ ctx, fn, steps }) {
+            // Register a hook only if this event is the trigger
+            if (ctx.event.name === "app/user.created") {
+            return {
+                beforeExecution() {
+                console.log("Function executing with user created event");
+                },
+            };
+            }
+
+            // Register no hooks if the trigger was not `app/user.created`
+            return {};
+        },
+        };
+    },
+});
+
+export const inngest = new Inngest({
+    id: "my-app",
+    middleware: [myMiddleware],
+});
+```
+
+### 流程控制
+
+**并发**
+
+```ts
+// 示例 1：一个简单的并发定义，限制这个函数同时只能有10个步骤。
+inngest.createFunction(
+  {
+    id: "another-function",
+    concurrency: 10,
+  },
+  { event: "ai/summary.requested" },
+  async ({ event, step }) => {
+  }
+);
+
+// 示例 2：一个完整、复杂的例子，包含两个虚拟并发队列。
+inngest.createFunction(
+  {
+    id: "unique-function-id",
+    concurrency: [
+      {
+         // 对于这个函数，使用账户级别的并发限制，并使用 "openai" 作为虚拟队列的键。任何使用相同 "openai" 键的其他函数都会计算在这个限制内。
+         scope: "account",
+         key: `"openai"`,
+         // 如果有10个函数正在运行，并且使用了 "openai" 键，这个函数的运行将会等待容量空闲后再执行。
+         limit: 10,
+      },
+      {
+         // 为这个函数创建另一个虚拟并发队列。这限制了所有账户对这个函数的执行，基于 `event.data.account_id` 字段。
+         // "fn" 是默认的范围，所以我们可以省略这个字段。
+         scope: "fn",
+         key: "event.data.account_id",
+         limit: 1,
+      },
+    ],
+  },
+  { event: "ai/summary.requested" },
+  async ({ event, step }) => {
+  }
+);
+```
+
+**节流**
+
+```ts
+inngest.createFunction(
+  {
+    id: "unique-function-id",
+    throttle: {
+      limit: 1,
+      period: "5s",
+      burst: 2,
+      key: "event.data.user_id",
+    },
+  }
+  { event: "ai/summary.requested" },
+  async ({ event, step }) => {
+      // 请求速率限制在给定时间段内平滑请求，允许每秒 `limit/period` 个请求。
+  }
+);
+```
+
+**限流**
+
+```ts
+export default inngest.createFunction(
+  {
+    id: "synchronize-data",
+    rateLimit: {
+      limit: 1,
+      period: "4h",
+      key: "event.data.company_id",
+    },
+  },
+  { event: "intercom/company.updated" },
+  async ({ event, step }) => {
+    // 对于给定的事件负载，匹配 company_id 的情况下，这个函数每4小时只能运行一次
+  }
+);
+```
+
+**防抖**
+
+```ts
+export default inngest.createFunction(
+  {
+    id: "handle-webhook",
+    debounce: {
+      key: "event.data.account_id",
+      period: "5m",
+      timeout: "10m",
+    },
+  },
+  { event: "intercom/company.updated" },
+  async ({ event, step }) => {
+    // 这个函数只会在不再接收到相同 `event.data.account_id` 字段的事件后的5分钟内被调度。
+    // `event` 将是接收到的事件系列中的最后一个事件。
+  }
+);
+```
+
+**优先级**
+
+```ts
+export default inngest.createFunction(
+  {
+    id: "ai-generate-summary",
+    priority: {
+      // 对于企业账户，给定的函数运行将被优先处理
+      // 相对于在120秒前排队的函数。
+      // 对于所有其他账户，该函数将没有优先级地运行。
+      run: "event.data.account_type == 'enterprise' ? 120 : 0",
+    },
+  },
+  { event: "ai/summary.requested" },
+  async ({ event, step }) => {
+    // This function will be prioritized based on the account type
+  }
+);
+```
+
+### 错误处理和重试
+
+**重试**
+
+```ts
+inngest.createFunction(
+  {
+    id: "click-recorder",
+    retries: 10, // 选择您想要的重试次数
+  },
+  { event: "app/button.clicked" },
+  async ({ event, step, attempt }) => { /* ... */ },
+);
+```
+
+**回滚**
+
+```ts
+inngest.createFunction(
+  { id: "add-data" },
+  { event: "app/row.data.added" },
+  async ({ event, step }) => {
+    // ignore the error - this step is fine if it fails
+    await step
+      .run("non-critical-step", () => {
+        return updateMetric();
+      })
+      .catch();
+
+    // Add a rollback to a step
+    await step
+      .run("create-row", async () => {
+        const row = await createRow(event.data.rowId);
+        await addDetail(event.data.entry);
+      })
+      .catch((err) =>
+        step.run("rollback-row-creation", async () => {
+          await removeRow(event.data.rowId);
+        }),
+      );
+  },
+);
+```
+
+**失败处理**
+
+```ts
+/* Option 1: give the inngest function an `onFailure` handler. */
+inngest.createFunction(
+  {
+    id: "update-subscription",
+    retries: 5,
+    onFailure: async ({ event, error }) => {
+      // if the subscription check fails after all retries, unsubscribe the user
+      await unsubscribeUser(event.data.userId);
+    },
+  },
+  { event: "user/subscription.check" },
+  async ({ event }) => { /* ... */ },
+);
+/* Option 2: Listens for the [`inngest/function.failed`](/docs/reference/functions/handling-failures#the-inngest-function-failed-event) system event to catch all failures in the inngest environment*/
+inngest.createFunction(
+  { id: "handle-any-fn-failure" },
+  { event: "inngest/function.failed" },
+  async ({ event }) => { /* ... */ },
+);
+```
+
+**错误处理**
+
+```ts
+import { NonRetriableError } from "inngest";
+
+export default inngest.createFunction(
+  { id: "mark-store-imported" },
+  { event: "store/import.completed" },
+  async ({ event }) => {
+    try {
+      const result = await database.updateStore(
+        { id: event.data.storeId },
+        { imported: true }
+      );
+      return result.ok === true;
+    } catch (err) {
+      // Passing the original error via `cause` enables you to view the error in function logs
+      throw new NonRetriableError("Store not found", { cause: err });
+    }
+  }
+);
+```
+
+### 取消
+
+**取消超时**
+
+```ts
+const scheduleReminder = inngest.createFunction(
+  {
+    id: "schedule-reminder",
+    timeouts: {
+      // If the run takes longer than 10s to start, cancel the run.
+      start: "10s",
+    },
+  }
+  { event: "tasks/reminder.created" },
+  async ({ event, step }) => {
+    await step.run('send-reminder-push', async () => {
+      await pushNotificationService.push(event.data.reminder)
+    })
+  }
+  // ...
+);
+```
+
+**取消事件**
+
+```ts
+const scheduleReminder = inngest.createFunction(
+  {
+    id: "schedule-reminder",
+    cancelOn: [{
+      event: "tasks/reminder.deleted", // The event name that cancels this function
+      // Ensure the cancellation event (async) and the triggering event (event)'s reminderId are the same:
+      if: "async.data.reminderId == event.data.reminderId",
+    }],
+  }
+  { event: "tasks/reminder.created" },
+  async ({ event, step }) => {
+    await step.sleepUntil('sleep-until-remind-at-time', event.data.remindAt);
+    await step.run('send-reminder-push', async ({}) => {
+      await pushNotificationService.push(event.data.userId, event.data.reminderBody)
+    })
+  }
+  // ...
+);
+```
+
+**批量取消**
+
+```bash
+curl -X POST https://api.inngest.com/v1/cancellations \
+  -H 'Authorization: Bearer signkey-prod-<YOUR-SIGNING-KEY>' \
+  -H 'Content-Type: application/json' \
+  --data '{
+    "app_id": "acme-app",
+    "function_id": "schedule-reminder",
+    "started_after": "2024-01-21T18:23:12.000Z",
+    "started_before": "2024-01-22T14:22:42.130Z",
+    "if": "event.data.userId == 'user_o9235hf84hf'"
+  }'
+```
+
+### 日志
+
+```ts
+inngest.createFunction(
+  { id: "my-awesome-function" },
+  { event: "func/awesome" },
+  async ({ event, step, logger }) => {
+    logger.info("starting function", { metadataKey: "metadataValue" });
+
+    const val = await step.run("do-something", () => {
+      if (somethingBadHappens) logger.warn("something bad happened");
+    });
+
+    return { success: true, event };
+  }
+);
+```
+
+## 扩展
+
+`@inngest/workflow-kit` 可用于构建可视化流程设计器
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/1d51882574234846ace4e3fbf038f89a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734830303&x-orig-sign=ig97ogk%2BRYpCZvl7m1FvbIW9Ljw%3D)
+
+`@inngest/agent-kit` 可用于构建智能体网络
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/9c7a9ecd8d5947ddbac04e3a18a963ad~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734830303&x-orig-sign=3zpaBg8XT7aiv71LzhYeYw5fHZc%3D)

@@ -59,4 +59,7 @@ export default {
 	spi: {
 		title: "TypeScript中实现SPI机制",
 	},
+	inngest: {
+		title: "工作流引擎",
+	},
 };

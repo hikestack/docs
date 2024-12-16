@@ -22,4 +22,8 @@ export default {
 		title: "博客",
 		type: "page",
 	},
+	illustrations: {
+		title: "图解",
+		type: "page",
+	},
 };

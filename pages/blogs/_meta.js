@@ -44,6 +44,9 @@ export default {
 	robyn: {
 		title: "Robyn教程",
 	},
+	dotnet: {
+		title: "C#教程",
+	},
 	drizzle: {
 		title: "Drizzle ORM",
 	},

@@ -1,0 +1,367 @@
+## 介绍
+`C#`（读作 "C sharp"）是一种由微软开发的现代、通用、面向对象的编程语言。它在2000年首次发布，作为 .NET Framework 的一部分。C# 设计时考虑了简洁性和类型安全性，并且提供了自动内存管理、异常处理、泛型编程等特性。`C#`通过编译成中间语言（CIL）在 CLR（Common Language Runtime）上运行，实现跨平台和类型安全的应用开发。
+
+## 环境搭建
+
+.NET 是一个由微软开发的软件开发平台，它提供了一个运行时环境（Common Language Runtime，CLR）和一个庞大的类库（Framework Class Library，FCL）。.NET 使得开发者可以使用 C#（以及其他支持的语言）来构建多种类型的应用程序，包括桌面应用、Web 应用、移动应用和游戏。.NET 运行时负责管理应用程序的执行，包括内存管理、安全性和垃圾回收。
+
+.NET 9.0 是迄今为止性能最高的.NET版本
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/c8eb52935f1c4e6089c8cd9228e7dd26~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734955639&x-orig-sign=5dfntfWWRkzTEyzJI%2BcHBmWJeGs%3D)
+
+```bash
+curl -sSL https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh | bash
+
+export PATH="$HOME/.dotnet:$PATH"
+```
+
+验证安装
+
+```bash
+➜ dotnet --info
+.NET SDK:
+ Version:           9.0.101
+ Commit:            eedb237549
+ Workload version:  9.0.100-manifests.3068a692
+ MSBuild version:   17.12.12+1cce77968
+ ...
+```
+
+### 创建项目
+
+```bash
+mkdir demo && cd demo
+dotnet new console
+```
+
+`dotent new console` 命令在当前目录中创建一个控制台项目，生成的文件如下：
+
+```bash
+➜ tree .
+.
+├── Program.cs
+├── demo.csproj
+└── obj
+    ├── demo.csproj.nuget.dgspec.json
+    ├── demo.csproj.nuget.g.props
+    ├── demo.csproj.nuget.g.targets
+    ├── project.assets.json
+    └── project.nuget.cache
+```
+
+1.  **`Program.cs`**：
+
+    *   这是程序执行的起始点。
+
+    ```cs
+    Console.WriteLine("Hello, World!");
+    ```
+
+2.  **`demo.csproj`**：
+
+    *   这是项目配置文件，它定义了项目的构建配置和属性。`.csproj` 文件是一个 XML 格式的文件，其中包含了构建项目所需的所有信息.
+
+    ```xml
+    <!-- Microsoft.NET.Sdk 是 .NET 应用程序的标准 SDK，它包含了构建 .NET 应用程序所需的默认规则和逻辑。 -->
+    <Project Sdk="Microsoft.NET.Sdk">
+
+      <PropertyGroup>
+        <!-- 表示输出是一个控制台应用程序的可执行文件 -->
+        <OutputType>Exe</OutputType>
+        <!-- 项目将使用 .NET 9.0 提供的运行时和库 -->
+        <TargetFramework>net9.0</TargetFramework>
+        <!-- 启用隐式全局 using 指令，编译器会自动导入一组常用的命名空间，无需在每个源文件中显式添加 using 语句。
+     -->
+        <ImplicitUsings>enable</ImplicitUsings>
+        <!-- 启用可空引用类型 -->
+        <Nullable>enable</Nullable>
+      </PropertyGroup>
+
+    </Project>
+    ```
+
+3.  **`obj`**：
+
+    *   这是一个文件夹，包含了构建过程中的中间产物。这些产物是编译器生成的，但不是最终的输出文件。`obj` 目录包含了编译器生成的文件，如资源文件、中间语言（IL）代码、编译器生成的代码等。
+
+## 运行项目
+
+```bash
+➜ dotnet run
+Hello, World!
+```
+
+### 打包项目
+
+```bash
+➜ dotnet publish
+还原完成(0.2)
+  demo 已成功 (0.3) → bin/Release/net9.0/publish/
+
+在 0.7 中生成 已成功
+```
+
+直接使用 `dotnet publish` 命令打包的 .NET 程序是一个框架依赖部署。需要在目标机器上安装相应版本的 .NET 运行时才能运行。
+
+```bash
+➜ tree ./bin/Release/net9.0/publish
+./bin/Release/net9.0/publish
+├── demo
+├── demo.deps.json
+├── demo.dll
+├── demo.pdb
+└── demo.runtimeconfig.json
+
+1 directory, 5 files
+```
+
+让打包的程序可以直接在苹果芯片的macOS机器上运行
+
+```bash
+dotnet publish -c Release -r osx-arm64 -p:PublishSingleFile=true --self-contained
+```
+
+```bash
+➜  demo tree ./bin/Release/net9.0/osx-arm64/publish/
+./bin/Release/net9.0/osx-arm64/publish/
+├── demo
+└── demo.pdb
+
+1 directory, 2 files
+```
+
+直接执行打包后的程序
+
+```bash
+➜ ./bin/Release/net9.0/osx-arm64/publish/demo
+Hello, World!
+```
+
+### 安装依赖
+
+`dotnet add` 命令用于在项目文件中添加 NuGet 包的依赖
+```bash
+dotnet add package Newtonsoft.Json
+```
+执行后可以看到 `demo.csproj` 文件中新增了对 ` Newtonsoft.Json` 包的依赖
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+    
+    ...  
+    
+    <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    </ItemGroup>
+
+</Project>
+```
+
+### 使用依赖
+
+`Program.cs`
+
+```cs
+using Newtonsoft.Json;
+
+// 创建一个对象
+var person = new
+{
+    Name = "John Doe",
+    Age = 30,
+    City = "New York"
+};
+
+// 将对象序列化为 JSON 字符串
+string jsonString = JsonConvert.SerializeObject(person, Formatting.Indented);
+Console.WriteLine(jsonString);
+
+// 将 JSON 字符串反序列化为对象
+var deserializedPerson = JsonConvert.DeserializeObject<dynamic>(jsonString);
+Console.WriteLine($"Name: {deserializedPerson.Name}, Age: {deserializedPerson.Age}, City: {deserializedPerson.City}");
+```
+
+```bash
+➜ dotnet run
+{
+  "Name": "John Doe",
+  "Age": 30,
+  "City": "New York"
+}
+Name: John Doe, Age: 30, City: New York
+```
+
+`var person = new {...};` 是`C#`的匿名类语法，用于创建临时对象。
+
+### 使用 LINQ
+
+`LINQ`（Language Integrated Query）是微软引入的一种查询语言，它被集成到了 C# 和其他 .NET 语言中。`LINQ` 允许开发者使用声明式语法来处理数据查询，这种语法非常类似于 SQL，但是可以直接在编程语言中使用。`LINQ` 可以查询多种数据源，包括数组、列表、字典等集合，以及 XML 文档、数据库等。
+
+`Program.cs`
+
+```cs
+ // 指定要搜索的目录
+string directoryPath = @"./obj";
+
+// 使用 LINQ 查询所有 .json 文件
+var txtFiles = from file in Directory.EnumerateFiles(directoryPath)
+               where Path.GetExtension(file) == ".json"
+               select file;
+
+// 打印每个 .json 文件的路径
+foreach (var filePath in txtFiles)
+{
+    Console.WriteLine(filePath);
+}
+```
+
+由于项目启用隐式全局 using 指令，所以无需引入下面的命名空间:
+
+```cs
+using System;
+using System.IO;
+using System.Linq;
+```
+
+    ➜ dotnet run
+    ./obj/demo.csproj.nuget.dgspec.json
+    ./obj/project.assets.json
+
+## 原生桌面程序开发
+
+.NET 多平台应用 UI (.NET MAUI) 是一个跨平台框架，用于使用 C# 和 XAML 创建本机移动和桌面应用。
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/0670c11b5e88401b9112b5bd10171626~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734955639&x-orig-sign=cF0zQIdOL1ycMU957oMbzxhXcC4%3D)
+
+### 安装 Workload
+
+`.NET workload` 是 .NET SDK 的一部分，它包含了构建特定类型 .NET 应用程序所需的工具、库和运行时，可以通过 .NET CLI 进行安装和管理。
+
+```bash
+sudo dotnet workload install maui
+```
+
+创建一个 MAUI 项目
+
+```bash
+dotnet new maui -n MyMauiApp
+cd MyMauiApp
+```
+
+在终端中运行 `xcode-select --install` 以获取 Xcode 命令行工具
+
+`MauiProgram.cs` 文件是一个静态类，它包含了应用程序的启动逻辑
+
+```cs
+using Microsoft.Extensions.Logging;
+
+namespace MyMauiApp;
+
+public static class MauiProgram
+{
+	public static MauiApp CreateMauiApp()
+	{
+		var builder = MauiApp.CreateBuilder();
+		builder
+			.UseMauiApp<App>()
+			.ConfigureFonts(fonts =>
+			{
+				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+			});
+
+#if DEBUG
+		builder.Logging.AddDebug();
+#endif
+
+		return builder.Build();
+	}
+}
+```
+
+### XAML
+
+XAML（eXtensible Application Markup Language）是一种由微软开发的标记语言，用于定义用户界面和对象图。
+
+```xml
+<Button Content="Click Me" HorizontalAlignment="Left" VerticalAlignment="Top" Click="Button_Click"/>
+```
+
+这是一个使用 `XAML` 创建按钮的例子，它设置文本内容、水平和垂直对齐方式，以及一个点击事件处理程序 `Button_Click`。
+
+### MVVM
+
+MVVM（Model-View-ViewModel）是一种最早由微软提出的软件设计模式，它将应用程序分为模型（Model）、视图（View）和视图模型（ViewModel）三个部分，以实现关注点分离和提高代码的可维护性。
+
+```bash
+dotnet add package CommunityToolkit.Mvvm
+```
+
+创建一个名为 `MainViewModel.cs` 的视图模型
+
+```cs
+using CommunityToolkit.Mvvm;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace MyMauiApp.ViewModels
+{
+    public partial class MainViewModel : ObservableObject
+    {
+        [ObservableProperty]
+        private string _message = "Hello, MAUI!";
+
+        [RelayCommand]
+        private void UpdateMessage()
+        {
+            Message = "Message updated!";
+        }
+    }
+}
+```
+
+修改`MainPage.xaml`的内容
+
+```xml
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:MyMauiApp.ViewModels"
+             x:Class="MyMauiApp.MainPage"             
+             x:DataType="vm:MainViewModel">
+             <!-- 绑定视图模型 -->
+
+    <StackLayout Padding="20">
+        <!-- 绑定属性 -->
+        <Label Text="{Binding Message}" />
+        <!-- 绑定事件 -->
+        <Button Text="Update Message" Command="{Binding UpdateMessageCommand}" />
+    </StackLayout>
+</ContentPage>
+```
+
+```cs
+using MyMauiApp.ViewModels;
+
+namespace MyMauiApp;
+
+public partial class MainPage : ContentPage
+{
+	public MainPage()
+	{
+		// 初始化与当前页面关联的XAML文件
+		InitializeComponent();
+		// 绑定视图模型
+		BindingContext = new MainViewModel();
+	}
+}
+```
+
+### 启动程序
+
+```bash
+dotnet build -t:Run -f net9.0-maccatalyst
+```
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/65c993a73db040a6a8fd6e48e0f0e6d1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUm95TGlu:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiMjkyODc1NDcwODE4NTkxNyJ9&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1734955639&x-orig-sign=9SdBHWnEzc%2FZNveOpmptEyPOX5A%3D)
+
+点击按钮后文本内容会从 `Hello, MAUI!` 修改为 `Message updated!`
